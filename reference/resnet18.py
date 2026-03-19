@@ -69,6 +69,7 @@ class ResNet18(nn.Module):
         self.config = config
         self.in_channels = config.in_channels
 
+
         self.conv1 = nn.Conv2d(
             3,
             config.in_channels,
@@ -100,24 +101,71 @@ class ResNet18(nn.Module):
 
         return nn.Sequential(*layers)
 
+    # def forward(self, x):
+    #     # input stem
+    #     out = self.conv1(x)
+    #     out = self.bn1(out)
+    #     out = self.relu(out)
+
+    #     # residual layers
+    #     out = self.layer1(out)
+    #     out = self.layer2(out)
+    #     out = self.layer3(out)
+    #     out = self.layer4(out)
+
+    #     # head
+    #     out = self.avgpool(out)
+    #     out = out.view(out.size(0), -1)
+    #     out = self.fc(out)
+
+    #     return out
     def forward(self, x):
+        acts = {}
+        shapes = {}
+
+        acts["input"] = x
+        shapes["input"] = tuple(x.shape)
 
         out = self.conv1(x)
+        shapes["conv1"] = tuple(out.shape)
+
         out = self.bn1(out)
+        shapes["bn1"] = tuple(out.shape)
+
         out = self.relu(out)
+        shapes["relu"] = tuple(out.shape)
+
+        acts["stem"] = out
 
         out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
+        acts["layer1"] = out
+        shapes["layer1"] = tuple(out.shape)
 
+        out = self.layer2(out)
+        acts["layer2"] = out
+        shapes["layer2"] = tuple(out.shape)
+
+        out = self.layer3(out)
+        acts["layer3"] = out
+        shapes["layer3"] = tuple(out.shape)
+
+        out = self.layer4(out)
+        acts["layer4"] = out
+        shapes["layer4"] = tuple(out.shape)
+
+        acts["prepool"] = out
         out = self.avgpool(out)
+        acts["avgpool"] = out
 
         out = out.view(out.size(0), -1)
+        acts["flatten"] = out
 
         out = self.fc(out)
+        acts["head"] = out
 
-        return out
+
+        acts["head"] = out
+        return out, acts, shapes
 
 
 def create_torch_model(device):
@@ -129,6 +177,6 @@ def create_torch_model(device):
     model.to(device)
     model.eval()
 
-    print(model)
+    # print(model)
 
     return model
