@@ -22,17 +22,12 @@ class BasicBlockWeights:
     bn2_weight: ttnn.Tensor
     bn2_bias: ttnn.Tensor
 
-    # # optional biases
-    # bias1_tensor: Optional[ttnn.Tensor] = None
-    # bias2_tensor: Optional[ttnn.Tensor] = None
-
     # shortcut (projection)
     shortcut_conv_weight: Optional[ttnn.Tensor] = None
     shortcut_bn_running_mean: Optional[ttnn.Tensor] = None
     shortcut_bn_running_var: Optional[ttnn.Tensor] = None
     shortcut_bn_weight: Optional[ttnn.Tensor] = None
     shortcut_bn_bias: Optional[ttnn.Tensor] = None
-    # shortcut_bias_tensor: Optional[ttnn.Tensor] = None
 
 
 class BasicBlock:
@@ -148,7 +143,6 @@ class BasicBlock:
             dilation=(1, 1),
             groups=1,
             dtype=self.dtype,
-            # bias_tensor=self.weights.shortcut_bias_tensor,
             conv_config=self.shortcut_conv_config,
             return_output_dim=False,
             return_weights_and_bias=False,
@@ -185,7 +179,6 @@ class BasicBlock:
             dilation=(self.dilation, self.dilation),
             groups=self.groups,
             dtype=self.dtype,
-            # bias_tensor=self.weights.bias1_tensor,
             conv_config=self.conv1_config,
 
             return_output_dim=False,
@@ -228,7 +221,6 @@ class BasicBlock:
             dilation=(self.dilation, self.dilation),
             groups=self.groups,
             dtype=self.dtype,
-            # bias_tensor=self.weights.bias2_tensor,
             conv_config=self.conv2_config,
 
             return_output_dim=False,

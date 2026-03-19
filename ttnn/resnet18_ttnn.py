@@ -65,18 +65,6 @@ def _build_layer_dict(*, state_dict: dict, layer_id: int, device, dtype):
             or ".shortcut.1.running_var" in key
         )
 
-        # if is_bn_tensor:
-        #     layer_dict[key] = _to_tile_bn(
-        #         value.to(torch.bfloat16),
-        #         device=device,
-        #         dtype=dtype,
-        #     )
-        # else:
-        #     layer_dict[key] = _to_row_major(
-        #         value.to(torch.bfloat16),
-        #         device=device,
-        #         dtype=dtype,
-        #     )
         if is_bn_tensor:
             layer_dict[key] = _to_tile_bn(
                 value.to(torch.bfloat16),
@@ -119,10 +107,6 @@ class ResNet18:
             dtype=dtype,
         )
 
-        # If InputStem later exposes output_height/output_width,
-        # replace this block with:
-        # current_height = self.stem.output_height
-        # current_width = self.stem.output_width
         current_height = self.stem.output_height
         current_width = self.stem.output_width
         current_channels = self.stem.OUT_CHANNELS
@@ -198,35 +182,20 @@ class ResNet18:
             memory_config=head_memory_config,
         )
 
-    # def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-    #     x = self.stem.forward(input_tensor)
-    #     # print("after stem:", x.shape)
-
-    #     x = self.layer1.forward(x)
-    #     # print("after layer1:", x.shape)
-
-    #     x = self.layer2.forward(x)
-    #     # print("after layer2:", x.shape)
-
-    #     x = self.layer3.forward(x)
-    #     # print("after layer3:", x.shape)
-
-    #     x = self.layer4.forward(x)
-    #     # print("after layer4:", x.shape)
-
-    #     x = self.head.forward(x)
-    #     return x
     def forward(self, input_tensor: ttnn.Tensor):
+        # to track the shape and activation per layer for debuging
         acts = {}
         shapes = {}
 
         acts["input"] = input_tensor
         shapes["input"] = tuple(input_tensor.shape)
 
+        # input stem
         x = self.stem.forward(input_tensor)
         acts["stem"] = x
         shapes["stem"] = tuple(x.shape)
 
+        # residual layer
         x = self.layer1.forward(x)
         acts["layer1"] = x
         shapes["layer1"] = tuple(x.shape)
@@ -243,41 +212,11 @@ class ResNet18:
         acts["layer4"] = x
         shapes["layer4"] = tuple(x.shape)
 
-        # x = self.head.forward(x)
-        # acts["head"] = x
-        # shapes["head"] = tuple(x.shape)
-        x = ttnn.reshape(
-            input_tensor=x,
-            shape=(self.head.batch_size, self.head.input_height, self.head.input_width, self.head.IN_FEATURES),
-        )
-        acts["prepool"] = x
 
-        # DEBUG: verify global_avg_pool2d bằng reference trên torch
-        prepool_torch = ttnn.to_torch(x).detach().cpu().float()          # (N, H, W, C)
-        avgpool_torch = prepool_torch.mean(dim=(1, 2), keepdim=True)    # mean over H, W
-        print("debug prepool_torch shape:", tuple(prepool_torch.shape))
-        print("debug avgpool_torch shape:", tuple(avgpool_torch.shape))
-
-        x = ttnn.from_torch(
-            avgpool_torch,
-            dtype=x.dtype,
-            layout=x.layout,
-            device=x.device(),
-            memory_config=self.head.memory_config,
-        )
-
-        acts["avgpool"] = x
-
-        x = ttnn.reshape(x, (self.head.batch_size, self.head.IN_FEATURES))
-        acts["flatten"] = x
-
-        x = ttnn.linear(
-            x,
-            self.head.weights.fc_weight,
-            bias=self.head.weights.fc_bias,
-            memory_config=self.head.memory_config,
-        )
+        # head classification
+        x = self.head.forward(x)
         acts["head"] = x
+        shapes["head"] = tuple(x.shape)
 
         return x, acts, shapes
 
@@ -297,11 +236,6 @@ def load_resnet18_from_torch_checkpoint(
     state_dict = torch.load(weights_path, map_location="cpu")
 
     stem_weights = InputStemWeights(
-        # conv_weight=_to_row_major(
-        #     state_dict["conv1.weight"].to(torch.bfloat16),
-        #     device=device,
-        #     dtype=dtype,
-        # ),
         conv_weight=_to_row_major_host(
             state_dict["conv1.weight"].to(torch.bfloat16),
             dtype=dtype,
@@ -391,52 +325,3 @@ def load_resnet18_from_torch_checkpoint(
         conv2d_config=conv2d_config,
         head_memory_config=head_memory_config,
     )
-
-
-if __name__ == "__main__":
-    print("[1] starting script")
-
-    weights_path = Path(__file__).resolve().parent.parent / "reference" / "resnet18_weights.pth"
-
-    device = ttnn.open_device(device_id=0, l1_small_size=8192)
-    print("[2] device opened")
-
-    try:
-        model = load_resnet18_from_torch_checkpoint(
-            weights_path=weights_path,
-            device=device,
-            batch_size=1,
-            input_height=32,
-            input_width=32,
-            num_classes=10,
-            dtype=ttnn.bfloat16,
-            conv2d_config=None,
-            head_memory_config=None,
-        )
-        print("[3] model created")
-
-        torch_input = torch.randn(
-            (1, 32, 32, 3),
-            dtype=torch.bfloat16,
-        )
-
-        input_tensor = ttnn.from_torch(
-            torch_input,
-            device=device,
-            dtype=ttnn.bfloat16,
-            layout=ttnn.ROW_MAJOR_LAYOUT,
-        )
-        print("[4] input created")
-
-        output = model.forward(input_tensor)
-        print("[5] forward finished")
-
-        output_torch = ttnn.to_torch(output)
-        print("[6] output shape:", tuple(output_torch.shape))
-        print("[7] output:", output_torch)
-
-    finally:
-        ttnn.close_device(device)
-        print("[8] device closed")
-
-

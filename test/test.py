@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(ROOT, "ttnn"))
 sys.path.insert(0, os.path.join(ROOT, "reference"))
 
 from resnet18_ttnn import load_resnet18_from_torch_checkpoint
-from resnet18 import create_torch_model
+from resnet18_torch import create_torch_model
 
 from collections import OrderedDict
 
@@ -47,8 +47,6 @@ def print_shape_comparison_table(torch_shapes, ttnn_shapes):
 
     print(sep)
 
-
-
 def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
     a = a.detach().float().reshape(-1)
     b = b.detach().float().reshape(-1)
@@ -62,35 +60,6 @@ def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
 
     return ((a * b).sum() / denom).item()
 
-
-# def ttnn_act_to_torch(name: str, x_ttnn, batch_size: int) -> torch.Tensor:
-#     x = ttnn.to_torch(x_ttnn).detach().cpu().float()
-
-#     if name == "input":
-#         # TTNN input: [B, H, W, C] -> Torch: [B, C, H, W]
-#         return x.permute(0, 3, 1, 2).contiguous()
-
-#     if name == "stem":
-#         # raw TTNN: [1, 1, B*32*32, 64] -> Torch: [B, 64, 32, 32]
-#         return x.reshape(batch_size, 32, 32, 64).permute(0, 3, 1, 2).contiguous()
-
-#     if name == "layer1":
-#         return x.reshape(batch_size, 32, 32, 64).permute(0, 3, 1, 2).contiguous()
-
-#     if name == "layer2":
-#         return x.reshape(batch_size, 16, 16, 128).permute(0, 3, 1, 2).contiguous()
-
-#     if name == "layer3":
-#         return x.reshape(batch_size, 8, 8, 256).permute(0, 3, 1, 2).contiguous()
-
-#     if name == "layer4":
-#         return x.reshape(batch_size, 4, 4, 512).permute(0, 3, 1, 2).contiguous()
-
-#     if name == "head":
-#         # logits: [B, num_classes]
-#         return x.reshape(batch_size, -1)
-
-#     raise ValueError(f"Unsupported layer name: {name}")
 def ttnn_act_to_torch(name: str, x_ttnn, batch_size: int) -> torch.Tensor:
     x = ttnn.to_torch(x_ttnn).detach().cpu().float()
 
@@ -134,9 +103,9 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         "layer2",
         "layer3",
         "layer4",
-        "prepool",
-        "avgpool",
-        "flatten",
+        # "prepool",
+        # "avgpool",
+        # "flatten",
         "head",
     ]
 
@@ -160,9 +129,9 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             continue
 
         ref = torch_acts[name].detach().cpu().float()
-        
+
         raw = ttnn.to_torch(ttnn_acts[name]).detach().cpu().float()
-        print(name, "raw shape from to_torch:", tuple(raw.shape))
+        # print(name, "raw shape from to_torch:", tuple(raw.shape))
 
         got = ttnn_act_to_torch(name, ttnn_acts[name], batch_size)
 
@@ -196,10 +165,10 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
 def main():
     print("[1] starting stress PCC test")
 
-    weights_path = os.path.join(ROOT, "reference", "resnet18_weights.pth")
+    weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
-    BATCH_SIZE = 8
     NUM_ITERS = 20
+    BATCH_SIZE = 8
     HEIGHT = 32
     WIDTH = 32
     PCC_THRESHOLD = 0.99
@@ -246,7 +215,6 @@ def main():
 
             # Torch forward
             with torch.no_grad():
-                # torch_output = torch_model(torch_input_nchw)
                 torch_output, torch_acts, torch_shapes = torch_model(torch_input_nchw)
 
 
@@ -258,8 +226,6 @@ def main():
                 layout=ttnn.ROW_MAJOR_LAYOUT,
             )
 
-            # ttnn_output = ttnn_model.forward(ttnn_input)
-            # ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
 

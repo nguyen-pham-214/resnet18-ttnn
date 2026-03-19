@@ -101,24 +101,6 @@ class ResNet18(nn.Module):
 
         return nn.Sequential(*layers)
 
-    # def forward(self, x):
-    #     # input stem
-    #     out = self.conv1(x)
-    #     out = self.bn1(out)
-    #     out = self.relu(out)
-
-    #     # residual layers
-    #     out = self.layer1(out)
-    #     out = self.layer2(out)
-    #     out = self.layer3(out)
-    #     out = self.layer4(out)
-
-    #     # head
-    #     out = self.avgpool(out)
-    #     out = out.view(out.size(0), -1)
-    #     out = self.fc(out)
-
-    #     return out
     def forward(self, x):
         acts = {}
         shapes = {}
@@ -176,7 +158,5 @@ def create_torch_model(device):
 
     model.to(device)
     model.eval()
-
-    # print(model)
 
     return model

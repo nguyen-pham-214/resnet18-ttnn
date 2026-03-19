@@ -73,14 +73,12 @@ class ResNetLayer:
             bn2_running_var=self.weights[f"{prefix}.bn2.running_var"],
             bn2_weight=self.weights[f"{prefix}.bn2.weight"],
             bn2_bias=self.weights[f"{prefix}.bn2.bias"],
-            # bias1_tensor=None,
-            # bias2_tensor=None,
+
             shortcut_conv_weight=self.weights.get(f"{prefix}.shortcut.0.weight") if use_projection else None,
             shortcut_bn_running_mean=self.weights.get(f"{prefix}.shortcut.1.running_mean") if use_projection else None,
             shortcut_bn_running_var=self.weights.get(f"{prefix}.shortcut.1.running_var") if use_projection else None,
             shortcut_bn_weight=self.weights.get(f"{prefix}.shortcut.1.weight") if use_projection else None,
             shortcut_bn_bias=self.weights.get(f"{prefix}.shortcut.1.bias") if use_projection else None,
-            # shortcut_bias_tensor=None,
         )
 
     def _build(self) -> None:

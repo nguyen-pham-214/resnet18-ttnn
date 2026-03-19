@@ -31,23 +31,38 @@ class ResNetHead:
         self.memory_config = memory_config
 
     def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-        # input_tensor is [1, 1, B*H*W, C]
-        x = ttnn.adaptive_avg_pool2d(
-            input_tensor=input_tensor,
-            batch_size=self.batch_size,
-            input_h=self.input_height,
-            input_w=self.input_width,
-            channels=self.IN_FEATURES,
-            output_size=[1, 1],
+        # reshape về (N, H, W, C)
+        x = ttnn.reshape(
+            input_tensor,
+            (
+                self.batch_size,
+                self.input_height,
+                self.input_width,
+                self.IN_FEATURES,
+            ),
+        )
+
+        # global average pooling (manual via torch reference)
+        x_torch = ttnn.to_torch(x).detach().cpu().float()
+        x_torch = x_torch.mean(dim=(1, 2), keepdim=True)
+
+        x = ttnn.from_torch(
+            x_torch,
+            dtype=x.dtype,
+            layout=x.layout,
+            device=x.device(),
             memory_config=self.memory_config,
         )
 
+        # flatten
         x = ttnn.reshape(x, (self.batch_size, self.IN_FEATURES))
 
+        # fully connected
         x = ttnn.linear(
             x,
             self.weights.fc_weight,
             bias=self.weights.fc_bias,
             memory_config=self.memory_config,
         )
+
         return x

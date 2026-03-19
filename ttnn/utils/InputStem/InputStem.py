@@ -15,20 +15,13 @@ class InputStemWeights:
 class InputStem:
     IN_CHANNELS = 3
     OUT_CHANNELS = 64
-    # KERNEL_SIZE = (7, 7)
-    # STRIDE = (2, 2)
-    # PADDING = (3, 3)
+
     KERNEL_SIZE = (3, 3)
     STRIDE = (1, 1)
     PADDING = (1, 1)
     DILATION = (1, 1)
     GROUPS = 1
 
-    # # MaxPool after ReLU
-    POOL_KERNEL_SIZE = (3, 3)
-    POOL_STRIDE = (2, 2)
-    POOL_PADDING = (1, 1)
-    POOL_DILATION = (1, 1)
 
     BN_EPS = 1e-5
     BN_MOMENTUM = 0.1
@@ -67,21 +60,6 @@ class InputStem:
             dilation=self.DILATION[1],
         )
 
-        # self.output_height = self._conv_out_dim(
-        #     input_size=self.conv_output_height,
-        #     kernel_size=self.POOL_KERNEL_SIZE[0],
-        #     stride=self.POOL_STRIDE[0],
-        #     padding=self.POOL_PADDING[0],
-        #     dilation=self.POOL_DILATION[0],
-        # )
-        
-        # self.output_width = self._conv_out_dim(
-        #     input_size=self.conv_output_width,
-        #     kernel_size=self.POOL_KERNEL_SIZE[1],
-        #     stride=self.POOL_STRIDE[1],
-        #     padding=self.POOL_PADDING[1],
-        #     dilation=self.POOL_DILATION[1],
-        # )
         self.output_height = self.conv_output_height
         self.output_width = self.conv_output_width
 
@@ -128,7 +106,6 @@ class InputStem:
                 print("device: <unavailable>", e)
 
     def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-        # self._debug_tensor("input", input_tensor)
         x = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv_weight,
@@ -147,14 +124,10 @@ class InputStem:
             groups=self.GROUPS,
             dtype=self.dtype,
             bias_tensor=None,
-            # conv_config=self.conv_config,
-  
+
             return_output_dim=False,
             return_weights_and_bias=False,
         )
-        # self._debug_tensor("after conv2d", x)
-        # print("conv out memory_config:", x.memory_config())
-        # print("conv out layout:", x.layout)
 
         x = ttnn.batch_norm(
             x,
@@ -166,25 +139,10 @@ class InputStem:
             bias=self.weights.bn_bias,
             training=False,
         )
-        # self._debug_tensor("after batch_norm", x)
 
         x = ttnn.relu(
             input_tensor=x,
-            # memory_config=self.memory_config
         )   
-        # self._debug_tensor("after relu", x)
 
-        # x = ttnn.max_pool2d(
-        #     x,
-        #     self.batch_size,
-        #     self.conv_output_height,
-        #     self.conv_output_width,
-        #     self.OUT_CHANNELS,
-        #     self.POOL_KERNEL_SIZE,
-        #     self.POOL_STRIDE,
-        #     self.POOL_PADDING,
-        #     self.POOL_DILATION,
-        # )
-        # self._debug_tensor("after max_pool2d", x)
 
         return x
