@@ -125,6 +125,10 @@ class BasicBlock:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
     def _forward_shortcut(self, input_tensor):
+        # The shortcut is an identity mapping that adds the original input to the block output.
+        # For element-wise addition, both tensors must have the same shape.
+        # If the input and output shapes differ (due to stride or channel change),
+        # a 1x1 convolution is used to project the input to the required shape.
         if not self.use_projection:
             return ttnn.to_memory_config(input_tensor, self.interleaved_dram)
 

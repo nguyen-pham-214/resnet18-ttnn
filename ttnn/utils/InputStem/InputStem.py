@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-
 import ttnn
-
 
 @dataclass
 class InputStemWeights:
@@ -10,7 +8,6 @@ class InputStemWeights:
     bn_running_var: ttnn.Tensor
     bn_weight: ttnn.Tensor
     bn_bias: ttnn.Tensor
-
 
 class InputStem:
     IN_CHANNELS = 3
@@ -21,7 +18,6 @@ class InputStem:
     PADDING = (1, 1)
     DILATION = (1, 1)
     GROUPS = 1
-
 
     BN_EPS = 1e-5
     BN_MOMENTUM = 0.1
@@ -45,6 +41,7 @@ class InputStem:
         self.dtype = dtype
         self.conv_config = conv_config
 
+        # need to calc these output height and width to pass through the next layer
         self.conv_output_height = self._conv_out_dim(
             input_size=input_height,
             kernel_size=self.KERNEL_SIZE[0],
@@ -75,35 +72,35 @@ class InputStem:
     ) -> int:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
-    def _debug_tensor(self, name: str, x):
-        print(f"\n[{name}]")
+    # def _debug_tensor(self, name: str, x):
+    #     print(f"\n[{name}]")
 
-        # shape
-        try:
-            print("shape:", x.shape)
-        except Exception as e:
-            print("shape: <unavailable>", e)
+    #     # shape
+    #     try:
+    #         print("shape:", x.shape)
+    #     except Exception as e:
+    #         print("shape: <unavailable>", e)
 
-        # memory config
-        try:
-            print("memory_config:", x.memory_config())
-        except Exception as e:
-            print("memory_config: <unavailable>", e)
+    #     # memory config
+    #     try:
+    #         print("memory_config:", x.memory_config())
+    #     except Exception as e:
+    #         print("memory_config: <unavailable>", e)
 
-        # layout
-        try:
-            print("layout:", x.layout)
-        except Exception as e:
-            print("layout: <unavailable>", e)
+    #     # layout
+    #     try:
+    #         print("layout:", x.layout)
+    #     except Exception as e:
+    #         print("layout: <unavailable>", e)
 
-        # device
-        try:
-            print("device:", x.device())
-        except Exception:
-            try:
-                print("device:", x.device)
-            except Exception as e:
-                print("device: <unavailable>", e)
+    #     # device
+    #     try:
+    #         print("device:", x.device())
+    #     except Exception:
+    #         try:
+    #             print("device:", x.device)
+    #         except Exception as e:
+    #             print("device: <unavailable>", e)
 
     def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
         x = ttnn.conv2d(

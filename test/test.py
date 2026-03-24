@@ -1,10 +1,10 @@
 from pathlib import Path
+import time
+import os
+import sys
 
 import torch
 import ttnn
-
-import os
-import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
@@ -162,12 +162,42 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     print("-" * 90)
     return results
 
+
+# def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
+#     for _ in range(warmup):
+#         model.forward(input_tensor)
+#         ttnn.synchronize_device(device)
+
+#     start = time.perf_counter()
+
+#     for _ in range(runs):
+#         model.forward(input_tensor)
+
+#     ttnn.synchronize_device(device)
+#     end = time.perf_counter()
+
+#     total_time = end - start
+#     latency_per_run = total_time / runs
+#     fps = runs / total_time
+#     samples_per_sec = (runs * input_tensor.shape[0]) / total_time
+
+#     print(f"TTNN latency/run: {latency_per_run:.6f} s")
+#     print(f"TTNN FPS: {fps:.2f}")
+#     print(f"TTNN samples/sec: {samples_per_sec:.2f}")
+
+#     return {
+#         "total_time_s": total_time,
+#         "latency_s": latency_per_run,
+#         "fps": fps,
+#         "samples_per_sec": samples_per_sec,
+#     }
+
 def main():
     print("[1] starting stress PCC test")
 
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
-    NUM_ITERS = 20
+    NUM_ITERS = 1
     BATCH_SIZE = 8
     HEIGHT = 32
     WIDTH = 32
@@ -226,6 +256,14 @@ def main():
                 layout=ttnn.ROW_MAJOR_LAYOUT,
             )
 
+            # benchmark_ttnn_inference(
+            #     ttnn_model,
+            #     ttnn_input,
+            #     ttnn_device,
+            #     warmup=5,
+            #     runs=20,
+            # )
+
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
 
@@ -239,6 +277,8 @@ def main():
 
             print("torch output shape:", tuple(torch_output.shape))
             print("ttnn output shape:", tuple(ttnn_output_torch.shape))
+            # print("torch output:", tuple(torch_output))
+            # print("ttnn output:", tuple(ttnn_output_torch))
             print("PCC =", pcc)
             print("Max abs diff =", max_abs_diff)
             print("Mean abs diff =", mean_abs_diff)

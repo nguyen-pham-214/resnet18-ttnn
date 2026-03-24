@@ -109,15 +109,11 @@ class ResNet18(nn.Module):
         shapes["input"] = tuple(x.shape)
 
         out = self.conv1(x)
-        shapes["conv1"] = tuple(out.shape)
-
         out = self.bn1(out)
-        shapes["bn1"] = tuple(out.shape)
-
         out = self.relu(out)
-        shapes["relu"] = tuple(out.shape)
 
         acts["stem"] = out
+        shapes["stem"] = tuple(out.shape)
 
         out = self.layer1(out)
         acts["layer1"] = out
@@ -144,9 +140,7 @@ class ResNet18(nn.Module):
 
         out = self.fc(out)
         acts["head"] = out
-
-
-        acts["head"] = out
+        shapes["head"] = tuple(out.shape)
         return out, acts, shapes
 
 

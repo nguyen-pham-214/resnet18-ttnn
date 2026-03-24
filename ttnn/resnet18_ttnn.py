@@ -19,16 +19,6 @@ class ResNet18Weights:
     head: HeadWeights
 
 
-def _to_row_major(tensor: torch.Tensor, *, device, dtype):
-    tt = ttnn.from_torch(
-        tensor,
-        dtype=dtype,
-        layout=ttnn.ROW_MAJOR_LAYOUT,
-        device=device,
-    )
-    return ttnn.to_memory_config(tt, ttnn.DRAM_MEMORY_CONFIG)
-
-
 def _to_tile_bn(tensor: torch.Tensor, *, device, dtype):
     tensor = tensor.reshape(1, 1, 1, -1)
     tt = ttnn.from_torch(
@@ -189,34 +179,44 @@ class ResNet18:
 
         acts["input"] = input_tensor
         shapes["input"] = tuple(input_tensor.shape)
+        # print(f"MEMORY CONFIG - INPUT: {ttnn.get_memory_config(input_tensor)}")
 
         # input stem
         x = self.stem.forward(input_tensor)
         acts["stem"] = x
         shapes["stem"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - STEM: {ttnn.get_memory_config(x)}")
 
         # residual layer
         x = self.layer1.forward(x)
         acts["layer1"] = x
         shapes["layer1"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - LAYER 1: {ttnn.get_memory_config(x)}")
 
         x = self.layer2.forward(x)
         acts["layer2"] = x
         shapes["layer2"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - LAYER 2: {ttnn.get_memory_config(x)}")
+
 
         x = self.layer3.forward(x)
         acts["layer3"] = x
         shapes["layer3"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - LAYER 3: {ttnn.get_memory_config(x)}")
+
 
         x = self.layer4.forward(x)
         acts["layer4"] = x
         shapes["layer4"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - LAYER 4: {ttnn.get_memory_config(x)}")
 
 
         # head classification
         x = self.head.forward(x)
         acts["head"] = x
         shapes["head"] = tuple(x.shape)
+        # print(f"MEMORY CONFIG - HEAD: {ttnn.get_memory_config(x)}")
+
 
         return x, acts, shapes
 
