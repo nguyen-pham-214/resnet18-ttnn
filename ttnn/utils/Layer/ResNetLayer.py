@@ -32,7 +32,6 @@ class ResNetLayer:
         input_width: int,
         dtype=None,
         conv2d_config=None,
-
     ) -> None:
         if layer_id not in self.LAYER_SPECS:
             raise ValueError(f"Unsupported layer_id={layer_id}, expected one of {list(self.LAYER_SPECS.keys())}")
@@ -64,21 +63,11 @@ class ResNetLayer:
 
         return BasicBlockWeights(
             conv1_weight=self.weights[f"{prefix}.conv1.weight"],
+            conv1_bias=self.weights[f"{prefix}.conv1.bias"],
             conv2_weight=self.weights[f"{prefix}.conv2.weight"],
-            bn1_running_mean=self.weights[f"{prefix}.bn1.running_mean"],
-            bn1_running_var=self.weights[f"{prefix}.bn1.running_var"],
-            bn1_weight=self.weights[f"{prefix}.bn1.weight"],
-            bn1_bias=self.weights[f"{prefix}.bn1.bias"],
-            bn2_running_mean=self.weights[f"{prefix}.bn2.running_mean"],
-            bn2_running_var=self.weights[f"{prefix}.bn2.running_var"],
-            bn2_weight=self.weights[f"{prefix}.bn2.weight"],
-            bn2_bias=self.weights[f"{prefix}.bn2.bias"],
-
+            conv2_bias=self.weights[f"{prefix}.conv2.bias"],
             shortcut_conv_weight=self.weights.get(f"{prefix}.shortcut.0.weight") if use_projection else None,
-            shortcut_bn_running_mean=self.weights.get(f"{prefix}.shortcut.1.running_mean") if use_projection else None,
-            shortcut_bn_running_var=self.weights.get(f"{prefix}.shortcut.1.running_var") if use_projection else None,
-            shortcut_bn_weight=self.weights.get(f"{prefix}.shortcut.1.weight") if use_projection else None,
-            shortcut_bn_bias=self.weights.get(f"{prefix}.shortcut.1.bias") if use_projection else None,
+            shortcut_conv_bias=self.weights.get(f"{prefix}.shortcut.0.bias") if use_projection else None,
         )
 
     def _build(self) -> None:
@@ -124,8 +113,8 @@ class ResNetLayer:
         self.output_height = current_height
         self.output_width = current_width
 
-    def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+    def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
         x = input_tensor
         for block in self.blocks:
-            x = block.forward(x)
+            x = block(x)
         return x

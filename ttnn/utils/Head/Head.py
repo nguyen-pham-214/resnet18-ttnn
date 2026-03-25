@@ -31,7 +31,7 @@ class ResNetHead:
         self.memory_config = memory_config
 
 
-    def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+    def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
         x = ttnn.avg_pool2d(
             input_tensor,
             batch_size=self.batch_size,

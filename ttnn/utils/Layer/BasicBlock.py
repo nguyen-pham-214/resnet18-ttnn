@@ -4,37 +4,27 @@ from typing import Optional
 import ttnn
 
 
+from dataclasses import dataclass
+from typing import Optional
+
+import ttnn
+
+
 @dataclass
 class BasicBlockWeights:
-    # conv
     conv1_weight: ttnn.Tensor
+    conv1_bias: ttnn.Tensor
+
     conv2_weight: ttnn.Tensor
+    conv2_bias: ttnn.Tensor
 
-    # bn1
-    bn1_running_mean: ttnn.Tensor
-    bn1_running_var: ttnn.Tensor
-    bn1_weight: ttnn.Tensor
-    bn1_bias: ttnn.Tensor
-
-    # bn2
-    bn2_running_mean: ttnn.Tensor
-    bn2_running_var: ttnn.Tensor
-    bn2_weight: ttnn.Tensor
-    bn2_bias: ttnn.Tensor
-
-    # shortcut (projection)
     shortcut_conv_weight: Optional[ttnn.Tensor] = None
-    shortcut_bn_running_mean: Optional[ttnn.Tensor] = None
-    shortcut_bn_running_var: Optional[ttnn.Tensor] = None
-    shortcut_bn_weight: Optional[ttnn.Tensor] = None
-    shortcut_bn_bias: Optional[ttnn.Tensor] = None
+    shortcut_conv_bias: Optional[ttnn.Tensor] = None
 
 
 class BasicBlock:
     KERNEL_SIZE = (3, 3)
     SHORTCUT_KERNEL_SIZE = (1, 1)
-    BN_EPS = 1e-5
-    BN_MOMENTUM = 0.1
 
     def __init__(
         self,
@@ -94,13 +84,7 @@ class BasicBlock:
         self.output_height = self.conv1_output_height
         self.output_width = self.conv1_output_width
 
-        self.use_projection = (
-            self.weights.shortcut_conv_weight is not None
-            and self.weights.shortcut_bn_running_mean is not None
-            and self.weights.shortcut_bn_running_var is not None
-            and self.weights.shortcut_bn_weight is not None
-            and self.weights.shortcut_bn_bias is not None
-        )
+        self.use_projection = self.weights.shortcut_conv_weight is not None
 
         self.interleaved_l1 = ttnn.MemoryConfig(
             memory_layout=ttnn.TensorMemoryLayout.INTERLEAVED,
@@ -124,17 +108,19 @@ class BasicBlock:
     ) -> int:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
+     
     def _forward_shortcut(self, input_tensor):
         # The shortcut is an identity mapping that adds the original input to the block output.
         # For element-wise addition, both tensors must have the same shape.
         # If the input and output shapes differ (due to stride or channel change),
         # a 1x1 convolution is used to project the input to the required shape.
         if not self.use_projection:
-            return ttnn.to_memory_config(input_tensor, self.interleaved_dram)
+            return ttnn.to_memory_config(input_tensor, self.interleaved_l1)
 
         identity = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.shortcut_conv_weight,
+            bias_tensor=self.weights.shortcut_conv_bias,
             device=self.device,
             in_channels=self.in_channels,
             out_channels=self.out_channels,
@@ -152,25 +138,15 @@ class BasicBlock:
             return_weights_and_bias=False,
             memory_config=self.interleaved_l1,
         )
-        identity = ttnn.to_memory_config(identity, self.interleaved_dram)
-        identity = ttnn.batch_norm(
-            identity,
-            eps=self.BN_EPS,
-            momentum=self.BN_MOMENTUM,
-            running_mean=self.weights.shortcut_bn_running_mean,
-            running_var=self.weights.shortcut_bn_running_var,
-            weight=self.weights.shortcut_bn_weight,
-            bias=self.weights.shortcut_bn_bias,
-            training=False,
-        )
         return identity
 
-    def forward(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+    def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
         identity = self._forward_shortcut(input_tensor)
    
         out = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv1_weight,
+            bias_tensor=self.weights.conv1_bias,
             device=self.device,
             in_channels=self.in_channels,
             out_channels=self.out_channels,
@@ -184,35 +160,15 @@ class BasicBlock:
             groups=self.groups,
             dtype=self.dtype,
             conv_config=self.conv1_config,
-
             return_output_dim=False,
             return_weights_and_bias=False,
-
-            memory_config=ttnn.MemoryConfig(
-                memory_layout=ttnn.TensorMemoryLayout.INTERLEAVED,
-                buffer_type=ttnn.BufferType.L1
-            )
-        )
-
-
-        out = ttnn.batch_norm(
-            out,
-            eps=self.BN_EPS,
-            momentum=self.BN_MOMENTUM,
-            running_mean=self.weights.bn1_running_mean,
-            running_var=self.weights.bn1_running_var,
-            weight=self.weights.bn1_weight,
-            bias=self.weights.bn1_bias,
-            training=False,
-        )
-
-        out = ttnn.relu(
-            input_tensor=out,
+            memory_config=self.interleaved_l1,
         )
 
         out = ttnn.conv2d(
             input_tensor=out,
             weight_tensor=self.weights.conv2_weight,
+            bias_tensor=self.weights.conv2_bias,
             device=self.device,
             in_channels=self.out_channels,
             out_channels=self.out_channels,
@@ -226,32 +182,15 @@ class BasicBlock:
             groups=self.groups,
             dtype=self.dtype,
             conv_config=self.conv2_config,
-
             return_output_dim=False,
             return_weights_and_bias=False,
-
-            memory_config=ttnn.MemoryConfig(
-                memory_layout=ttnn.TensorMemoryLayout.INTERLEAVED,
-                buffer_type=ttnn.BufferType.L1
-            )
+            memory_config=self.interleaved_l1,
         )
 
-
-        out = ttnn.batch_norm(
+        out = ttnn.add(
             out,
-            eps=self.BN_EPS,
-            momentum=self.BN_MOMENTUM,
-            running_mean=self.weights.bn2_running_mean,
-            running_var=self.weights.bn2_running_var,
-            weight=self.weights.bn2_weight,
-            bias=self.weights.bn2_bias,
-            training=False,
-        )
-
-        out = ttnn.add(out, identity)
-
-        out = ttnn.relu(
-            input_tensor=out,
+            identity,
+            activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
         )
 
         return out

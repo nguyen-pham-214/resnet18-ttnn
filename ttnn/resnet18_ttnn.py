@@ -7,6 +7,7 @@ import ttnn
 from utils.InputStem.InputStem import InputStem, InputStemWeights
 from utils.Layer.ResNetLayer import ResNetLayer
 from utils.Head.Head import ResNetHead, HeadWeights
+from configs import conv2d_config
 
 
 @dataclass
@@ -36,38 +37,137 @@ def _to_row_major_host(tensor: torch.Tensor, *, dtype):
         layout=ttnn.ROW_MAJOR_LAYOUT,
     )
 
-    
-def _build_layer_dict(*, state_dict: dict, layer_id: int, device, dtype):
+def _build_fused_layer_dict(*, state_dict: dict, layer_id: int, dtype):
     layer_dict = {}
     prefix = f"layer{layer_id}."
 
-    for key, value in state_dict.items():
-        if not key.startswith(prefix):
-            continue
+    # Find block ids present in this layer
+    block_ids = sorted(
+        {
+            int(key.split(".")[1])
+            for key in state_dict.keys()
+            if key.startswith(prefix)
+        }
+    )
 
-        is_bn_tensor = (
-            "running_mean" in key
-            or "running_var" in key
-            or (".bn" in key and (key.endswith(".weight") or key.endswith(".bias")))
-            or ".shortcut.1.weight" in key
-            or ".shortcut.1.bias" in key
-            or ".shortcut.1.running_mean" in key
-            or ".shortcut.1.running_var" in key
+    for block_id in block_ids:
+        block_prefix = f"{prefix}{block_id}"
+
+        # conv1 + bn1
+        conv1_w = state_dict[f"{block_prefix}.conv1.weight"].to(torch.bfloat16)
+        bn1_mean = state_dict[f"{block_prefix}.bn1.running_mean"].to(torch.bfloat16)
+        bn1_var = state_dict[f"{block_prefix}.bn1.running_var"].to(torch.bfloat16)
+        bn1_weight = state_dict[f"{block_prefix}.bn1.weight"].to(torch.bfloat16)
+        bn1_bias = state_dict[f"{block_prefix}.bn1.bias"].to(torch.bfloat16)
+
+        fused_conv1_w, fused_conv1_b = fold_bn_into_conv(
+            conv1_w,
+            bn1_mean,
+            bn1_var,
+            bn1_weight,
+            bn1_bias,
+            eps=1e-5,
         )
 
-        if is_bn_tensor:
-            layer_dict[key] = _to_tile_bn(
-                value.to(torch.bfloat16),
-                device=device,
+        layer_dict[f"{block_prefix}.conv1.weight"] = _to_row_major_host(
+            fused_conv1_w,
+            dtype=dtype,
+        )
+        layer_dict[f"{block_prefix}.conv1.bias"] = _to_row_major_host(
+            fused_conv1_b.reshape(1, 1, 1, -1),
+            dtype=dtype,
+        )
+
+        # conv2 + bn2
+        conv2_w = state_dict[f"{block_prefix}.conv2.weight"].to(torch.bfloat16)
+        bn2_mean = state_dict[f"{block_prefix}.bn2.running_mean"].to(torch.bfloat16)
+        bn2_var = state_dict[f"{block_prefix}.bn2.running_var"].to(torch.bfloat16)
+        bn2_weight = state_dict[f"{block_prefix}.bn2.weight"].to(torch.bfloat16)
+        bn2_bias = state_dict[f"{block_prefix}.bn2.bias"].to(torch.bfloat16)
+
+        fused_conv2_w, fused_conv2_b = fold_bn_into_conv(
+            conv2_w,
+            bn2_mean,
+            bn2_var,
+            bn2_weight,
+            bn2_bias,
+            eps=1e-5,
+        )
+
+        layer_dict[f"{block_prefix}.conv2.weight"] = _to_row_major_host(
+            fused_conv2_w,
+            dtype=dtype,
+        )
+        layer_dict[f"{block_prefix}.conv2.bias"] = _to_row_major_host(
+            fused_conv2_b.reshape(1, 1, 1, -1),
+            dtype=dtype,
+        )
+
+        # optional shortcut.0 + shortcut.1
+        shortcut_conv_key = f"{block_prefix}.shortcut.0.weight"
+        if shortcut_conv_key in state_dict:
+            shortcut_w = state_dict[shortcut_conv_key].to(torch.bfloat16)
+            shortcut_mean = state_dict[f"{block_prefix}.shortcut.1.running_mean"].to(torch.bfloat16)
+            shortcut_var = state_dict[f"{block_prefix}.shortcut.1.running_var"].to(torch.bfloat16)
+            shortcut_weight = state_dict[f"{block_prefix}.shortcut.1.weight"].to(torch.bfloat16)
+            shortcut_bias = state_dict[f"{block_prefix}.shortcut.1.bias"].to(torch.bfloat16)
+
+            fused_shortcut_w, fused_shortcut_b = fold_bn_into_conv(
+                shortcut_w,
+                shortcut_mean,
+                shortcut_var,
+                shortcut_weight,
+                shortcut_bias,
+                eps=1e-5,
+            )
+
+            layer_dict[f"{block_prefix}.shortcut.0.weight"] = _to_row_major_host(
+                fused_shortcut_w,
                 dtype=dtype,
             )
-        else:
-            layer_dict[key] = _to_row_major_host(
-                value.to(torch.bfloat16),
+            layer_dict[f"{block_prefix}.shortcut.0.bias"] = _to_row_major_host(
+                fused_shortcut_b.reshape(1, 1, 1, -1),
                 dtype=dtype,
             )
 
     return layer_dict
+
+def get_module_conv_configs(
+    conv2d_config: dict | None,
+    *,
+    module: str,
+    normalize_keys: bool = True,
+):
+    """
+    Extract conv configs for a given module.
+
+    Args:
+        conv2d_config: full config dict
+        module: e.g. "conv0", "conv1", "conv2", "head"
+        normalize_keys:
+            - True  -> keep keys with module prefix (conv1.0.0)
+            - False -> keep full original keys (same behavior)
+
+    Returns:
+        dict for modules with sub-structure (layers/head)
+        single config or None for flat modules (e.g. conv0)
+    """
+    if conv2d_config is None:
+        return None if module == "conv0" else {}
+
+    # Stem (single entry)
+    if module == "conv0":
+        return conv2d_config.get("conv0", None)
+
+    prefix = f"{module}."
+
+    out = {}
+    for key, value in conv2d_config.items():
+        if key.startswith(prefix):
+            # KEEP full key (do not strip)
+            out[key] = value
+
+    return out
 
 
 class ResNet18:
@@ -88,6 +188,15 @@ class ResNet18:
         self.batch_size = batch_size
         self.dtype = dtype
 
+        # convolution config
+        stem_conv_config = get_module_conv_configs(conv2d_config, module="conv0")
+        layer1_conv_config = get_module_conv_configs(conv2d_config, module="conv1")
+        layer2_conv_config = get_module_conv_configs(conv2d_config, module="conv2")
+        layer3_conv_config = get_module_conv_configs(conv2d_config, module="conv3")
+        layer4_conv_config = get_module_conv_configs(conv2d_config, module="conv4")
+        # head_conv_config = get_module_conv_configs(conv2d_config, module="head")
+         
+        
         self.stem = InputStem(
             weights=weights.stem,
             device=device,
@@ -95,6 +204,7 @@ class ResNet18:
             input_height=input_height,
             input_width=input_width,
             dtype=dtype,
+            conv2d_config=stem_conv_config,
         )
 
         current_height = self.stem.output_height
@@ -112,7 +222,7 @@ class ResNet18:
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
-            conv2d_config=conv2d_config,
+            conv2d_config=layer1_conv_config,
         )
 
         current_height = self.layer1.output_height
@@ -128,7 +238,7 @@ class ResNet18:
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
-            conv2d_config=conv2d_config,
+            conv2d_config=layer2_conv_config,
         )
 
         current_height = self.layer2.output_height
@@ -144,7 +254,7 @@ class ResNet18:
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
-            conv2d_config=conv2d_config,
+            conv2d_config=layer3_conv_config,
         )
 
         current_height = self.layer3.output_height
@@ -160,7 +270,7 @@ class ResNet18:
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
-            conv2d_config=conv2d_config,
+            conv2d_config=layer4_conv_config,
         )
 
         self.head = ResNetHead(
@@ -173,6 +283,8 @@ class ResNet18:
         )
 
     def forward(self, input_tensor: ttnn.Tensor):
+
+
         # to track the shape and activation per layer for debuging
         acts = {}
         shapes = {}
@@ -182,37 +294,37 @@ class ResNet18:
         # print(f"MEMORY CONFIG - INPUT: {ttnn.get_memory_config(input_tensor)}")
 
         # input stem
-        x = self.stem.forward(input_tensor)
+        x = self.stem(input_tensor)
         acts["stem"] = x
         shapes["stem"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - STEM: {ttnn.get_memory_config(x)}")
 
         # residual layer
-        x = self.layer1.forward(x)
+        x = self.layer1(x)
         acts["layer1"] = x
         shapes["layer1"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 1: {ttnn.get_memory_config(x)}")
 
-        x = self.layer2.forward(x)
+        x = self.layer2(x)
         acts["layer2"] = x
         shapes["layer2"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 2: {ttnn.get_memory_config(x)}")
 
 
-        x = self.layer3.forward(x)
+        x = self.layer3(x)
         acts["layer3"] = x
         shapes["layer3"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 3: {ttnn.get_memory_config(x)}")
 
 
-        x = self.layer4.forward(x)
+        x = self.layer4(x)
         acts["layer4"] = x
         shapes["layer4"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 4: {ttnn.get_memory_config(x)}")
 
 
         # head classification
-        x = self.head.forward(x)
+        x = self.head(x)
         acts["head"] = x
         shapes["head"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - HEAD: {ttnn.get_memory_config(x)}")
@@ -220,6 +332,29 @@ class ResNet18:
 
         return x, acts, shapes
 
+def fold_bn_into_conv(
+    conv_w: torch.Tensor,
+    bn_mean: torch.Tensor,
+    bn_var: torch.Tensor,
+    bn_weight: torch.Tensor,
+    bn_bias: torch.Tensor,
+    eps: float,
+    conv_bias: torch.Tensor | None = None,
+):
+    # conv_w: [out_channels, in_channels, kH, kW]
+    # conv_bias: [out_channels] or None
+    if conv_bias is None:
+        conv_bias = torch.zeros(
+            conv_w.shape[0],
+            dtype=conv_w.dtype,
+            device=conv_w.device,
+        )
+
+    scale = bn_weight / torch.sqrt(bn_var + eps)           # [C_out]
+    fused_w = conv_w * scale[:, None, None, None]
+    fused_b = bn_bias + (conv_bias - bn_mean) * scale
+
+    return fused_w, fused_b
 
 def load_resnet18_from_torch_checkpoint(
     *,
@@ -230,62 +365,41 @@ def load_resnet18_from_torch_checkpoint(
     input_width: int,
     num_classes: int,
     dtype,
-    conv2d_config=None,
+    conv2d_config=conv2d_config,
     head_memory_config=None,
 ):
     state_dict = torch.load(weights_path, map_location="cpu")
 
+    conv1_weight = state_dict["conv1.weight"].to(torch.bfloat16)
+    bn1_running_mean = state_dict["bn1.running_mean"].to(torch.bfloat16)
+    bn1_running_var = state_dict["bn1.running_var"].to(torch.bfloat16)
+    bn1_weight = state_dict["bn1.weight"].to(torch.bfloat16)
+    bn1_bias = state_dict["bn1.bias"].to(torch.bfloat16)
+
+    fused_conv1_weight, fused_conv1_bias = fold_bn_into_conv(
+        conv1_weight,
+        bn1_running_mean,
+        bn1_running_var,
+        bn1_weight,
+        bn1_bias,
+        eps=1e-5,
+    )
+
     stem_weights = InputStemWeights(
         conv_weight=_to_row_major_host(
-            state_dict["conv1.weight"].to(torch.bfloat16),
+            fused_conv1_weight,
             dtype=dtype,
         ),
-        bn_running_mean=_to_tile_bn(
-            state_dict["bn1.running_mean"].to(torch.bfloat16),
-            device=device,
-            dtype=dtype,
-        ),
-        bn_running_var=_to_tile_bn(
-            state_dict["bn1.running_var"].to(torch.bfloat16),
-            device=device,
-            dtype=dtype,
-        ),
-        bn_weight=_to_tile_bn(
-            state_dict["bn1.weight"].to(torch.bfloat16),
-            device=device,
-            dtype=dtype,
-        ),
-        bn_bias=_to_tile_bn(
-            state_dict["bn1.bias"].to(torch.bfloat16),
-            device=device,
+        conv_bias=_to_row_major_host(
+            fused_conv1_bias.reshape(1, 1, 1, -1),
             dtype=dtype,
         ),
     )
 
-    layer1 = _build_layer_dict(
-        state_dict=state_dict,
-        layer_id=1,
-        device=device,
-        dtype=dtype,
-    )
-    layer2 = _build_layer_dict(
-        state_dict=state_dict,
-        layer_id=2,
-        device=device,
-        dtype=dtype,
-    )
-    layer3 = _build_layer_dict(
-        state_dict=state_dict,
-        layer_id=3,
-        device=device,
-        dtype=dtype,
-    )
-    layer4 = _build_layer_dict(
-        state_dict=state_dict,
-        layer_id=4,
-        device=device,
-        dtype=dtype,
-    )
+    layer1 = _build_fused_layer_dict(state_dict=state_dict, layer_id=1, dtype=dtype)
+    layer2 = _build_fused_layer_dict(state_dict=state_dict, layer_id=2, dtype=dtype)
+    layer3 = _build_fused_layer_dict(state_dict=state_dict, layer_id=3, dtype=dtype)
+    layer4 = _build_fused_layer_dict(state_dict=state_dict, layer_id=4, dtype=dtype)
 
     fc_weight_key = "fc.weight" if "fc.weight" in state_dict else "linear.weight"
     fc_bias_key = "fc.bias" if "fc.bias" in state_dict else "linear.bias"

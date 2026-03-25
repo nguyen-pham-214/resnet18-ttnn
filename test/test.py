@@ -163,34 +163,34 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     return results
 
 
-# def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
-#     for _ in range(warmup):
-#         model.forward(input_tensor)
-#         ttnn.synchronize_device(device)
+def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
+    for _ in range(warmup):
+        model.forward(input_tensor)
+        ttnn.synchronize_device(device)
 
-#     start = time.perf_counter()
+    start = time.perf_counter()
 
-#     for _ in range(runs):
-#         model.forward(input_tensor)
+    for _ in range(runs):
+        model.forward(input_tensor)
 
-#     ttnn.synchronize_device(device)
-#     end = time.perf_counter()
+    ttnn.synchronize_device(device)
+    end = time.perf_counter()
 
-#     total_time = end - start
-#     latency_per_run = total_time / runs
-#     fps = runs / total_time
-#     samples_per_sec = (runs * input_tensor.shape[0]) / total_time
+    total_time = end - start
+    latency_per_run = total_time / runs
+    fps = runs / total_time
+    samples_per_sec = (runs * input_tensor.shape[0]) / total_time
 
-#     print(f"TTNN latency/run: {latency_per_run:.6f} s")
-#     print(f"TTNN FPS: {fps:.2f}")
-#     print(f"TTNN samples/sec: {samples_per_sec:.2f}")
+    print(f"TTNN latency/run: {latency_per_run:.6f} s")
+    print(f"TTNN FPS: {fps:.2f}")
+    print(f"TTNN samples/sec: {samples_per_sec:.2f}")
 
-#     return {
-#         "total_time_s": total_time,
-#         "latency_s": latency_per_run,
-#         "fps": fps,
-#         "samples_per_sec": samples_per_sec,
-#     }
+    return {
+        "total_time_s": total_time,
+        "latency_s": latency_per_run,
+        "fps": fps,
+        "samples_per_sec": samples_per_sec,
+    }
 
 def main():
     print("[1] starting stress PCC test")
@@ -198,7 +198,7 @@ def main():
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
     NUM_ITERS = 1
-    BATCH_SIZE = 8
+    BATCH_SIZE = 4
     HEIGHT = 32
     WIDTH = 32
     PCC_THRESHOLD = 0.99
@@ -226,7 +226,6 @@ def main():
             input_width=WIDTH,
             num_classes=10,
             dtype=ttnn.bfloat16,
-            conv2d_config=None,
             head_memory_config=None,
         )
         print("[4] ttnn model created")
@@ -256,13 +255,13 @@ def main():
                 layout=ttnn.ROW_MAJOR_LAYOUT,
             )
 
-            # benchmark_ttnn_inference(
-            #     ttnn_model,
-            #     ttnn_input,
-            #     ttnn_device,
-            #     warmup=5,
-            #     runs=20,
-            # )
+            benchmark_ttnn_inference(
+                ttnn_model,
+                ttnn_input,
+                ttnn_device,
+                warmup=5,
+                runs=20,
+            )
 
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
