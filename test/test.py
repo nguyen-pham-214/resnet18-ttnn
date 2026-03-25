@@ -163,45 +163,66 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     return results
 
 
-def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
-    for _ in range(warmup):
-        model.forward(input_tensor)
-        ttnn.synchronize_device(device)
+# def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
+#     for _ in range(warmup):
+#         model.forward(input_tensor)
+#         ttnn.synchronize_device(device)
 
-    start = time.perf_counter()
+#     start = time.perf_counter()
 
-    for _ in range(runs):
-        model.forward(input_tensor)
+#     for _ in range(runs):
+#         model.forward(input_tensor)
 
-    ttnn.synchronize_device(device)
-    end = time.perf_counter()
+#     ttnn.synchronize_device(device)
+#     end = time.perf_counter()
 
-    total_time = end - start
-    latency_per_run = total_time / runs
-    fps = runs / total_time
-    samples_per_sec = (runs * input_tensor.shape[0]) / total_time
+#     total_time = end - start
+#     latency_per_run = total_time / runs
+#     fps = runs / total_time
+#     samples_per_sec = (runs * input_tensor.shape[0]) / total_time
 
-    print(f"TTNN latency/run: {latency_per_run:.6f} s")
-    print(f"TTNN FPS: {fps:.2f}")
-    print(f"TTNN samples/sec: {samples_per_sec:.2f}")
+#     print(f"TTNN latency/run: {latency_per_run:.6f} s")
+#     print(f"TTNN FPS: {fps:.2f}")
+#     print(f"TTNN samples/sec: {samples_per_sec:.2f}")
 
-    return {
-        "total_time_s": total_time,
-        "latency_s": latency_per_run,
-        "fps": fps,
-        "samples_per_sec": samples_per_sec,
-    }
+#     return {
+#         "total_time_s": total_time,
+#         "latency_s": latency_per_run,
+#         "fps": fps,
+#         "samples_per_sec": samples_per_sec,
+#     }
+
+def safe_read_device_profiler(device):
+    candidates = [
+        "ReadDeviceProfiler",
+        "read_device_profiler",
+        "DumpDeviceProfiler",
+        "dump_device_profiler",
+    ]
+
+    for name in candidates:
+        fn = getattr(ttnn, name, None)
+        if callable(fn):
+            print(f"[PROFILER] calling ttnn.{name}(device)")
+            fn(device)
+            return
+
+    print("[PROFILER] no device-profiler read function found")
+    print([x for x in dir(ttnn) if "Profiler" in x or "profiler" in x])
 
 def main():
-    print("[1] starting stress PCC test")
 
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
-    NUM_ITERS = 1
-    BATCH_SIZE = 4
+    NUM_ITERS = 20
+    BATCH_SIZE = 8
     HEIGHT = 32
     WIDTH = 32
     PCC_THRESHOLD = 0.99
+
+    is_tracy_run = os.environ.get("TTNN_OP_PROFILER") == "1"
+    bench_warmup = 0 if is_tracy_run else 5
+    bench_runs = 1 if is_tracy_run else 20
 
     # -------------------------
     # Create torch reference model
@@ -209,13 +230,11 @@ def main():
     torch_device = "cpu"
     torch_model = create_torch_model(torch_device)
     torch_model.eval()
-    print("[2] torch model created")
 
     # -------------------------
     # Create TTNN model
     # -------------------------
     ttnn_device = ttnn.open_device(device_id=0, l1_small_size=8192)
-    print("[3] TT device opened")
 
     try:
         ttnn_model = load_resnet18_from_torch_checkpoint(
@@ -228,7 +247,6 @@ def main():
             dtype=ttnn.bfloat16,
             head_memory_config=None,
         )
-        print("[4] ttnn model created")
 
         worst_pcc = 1.0
         worst_max_abs_diff = 0.0
@@ -255,15 +273,19 @@ def main():
                 layout=ttnn.ROW_MAJOR_LAYOUT,
             )
 
-            benchmark_ttnn_inference(
-                ttnn_model,
-                ttnn_input,
-                ttnn_device,
-                warmup=5,
-                runs=20,
-            )
+            # benchmark_ttnn_inference(
+            #     ttnn_model,
+            #     ttnn_input,
+            #     ttnn_device,
+            #     warmup=bench_warmup,
+            #     runs=bench_runs,
+            # )
+
 
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
+            ttnn.synchronize_device(ttnn_device)
+            # safe_read_device_profiler(ttnn_device)
+
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
 
             # Normalize shapes
@@ -274,13 +296,13 @@ def main():
             max_abs_diff = torch.max(torch.abs(torch_output - ttnn_output_torch)).item()
             mean_abs_diff = torch.mean(torch.abs(torch_output - ttnn_output_torch)).item()
 
-            print("torch output shape:", tuple(torch_output.shape))
-            print("ttnn output shape:", tuple(ttnn_output_torch.shape))
+            # print("torch output shape:", tuple(torch_output.shape))
+            # print("ttnn output shape:", tuple(ttnn_output_torch.shape))
             # print("torch output:", tuple(torch_output))
             # print("ttnn output:", tuple(ttnn_output_torch))
-            print("PCC =", pcc)
-            print("Max abs diff =", max_abs_diff)
-            print("Mean abs diff =", mean_abs_diff)
+            # print("PCC =", pcc)
+            # print("Max abs diff =", max_abs_diff)
+            # print("Mean abs diff =", mean_abs_diff)
 
             worst_pcc = min(worst_pcc, pcc)
             worst_max_abs_diff = max(worst_max_abs_diff, max_abs_diff)

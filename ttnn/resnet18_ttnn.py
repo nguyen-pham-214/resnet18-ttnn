@@ -164,7 +164,6 @@ def get_module_conv_configs(
     out = {}
     for key, value in conv2d_config.items():
         if key.startswith(prefix):
-            # KEEP full key (do not strip)
             out[key] = value
 
     return out
