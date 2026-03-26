@@ -60,40 +60,23 @@ def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
 
     return ((a * b).sum() / denom).item()
 
-def ttnn_act_to_torch(name: str, x_ttnn, batch_size: int) -> torch.Tensor:
-    x = ttnn.to_torch(x_ttnn).detach().cpu().float()
+def ttnn_act_to_torch(ref: torch.Tensor, x_ttnn) -> torch.Tensor:
+    if isinstance(x_ttnn, torch.Tensor):
+        x = x_ttnn.detach().cpu().float()
+    else:
+        x = ttnn.to_torch(x_ttnn).detach().cpu().float()
 
-    if name == "input":
-        return x.permute(0, 3, 1, 2).contiguous()
+    if tuple(x.shape) == tuple(ref.shape):
+        return x.contiguous()
 
-    if name == "stem":
-        return x.reshape(batch_size, 32, 32, 64).permute(0, 3, 1, 2).contiguous()
+    if x.ndim == 4 and ref.ndim == 4:
+        if x.shape[0] == ref.shape[0] and x.shape[-1] == ref.shape[1]:
+            x = x.permute(0, 3, 1, 2).contiguous()
 
-    if name == "layer1":
-        return x.reshape(batch_size, 32, 32, 64).permute(0, 3, 1, 2).contiguous()
+    if x.numel() == ref.numel():
+        x = x.reshape_as(ref).contiguous()
 
-    if name == "layer2":
-        return x.reshape(batch_size, 16, 16, 128).permute(0, 3, 1, 2).contiguous()
-
-    if name == "layer3":
-        return x.reshape(batch_size, 8, 8, 256).permute(0, 3, 1, 2).contiguous()
-
-    if name == "layer4":
-        return x.reshape(batch_size, 4, 4, 512).permute(0, 3, 1, 2).contiguous()
-
-    if name == "prepool":
-        return x.permute(0, 3, 1, 2).contiguous()
-
-    if name == "avgpool":
-        return x.permute(0, 3, 1, 2).contiguous()
-
-    if name == "flatten":
-        return x.reshape(batch_size, 512)
-
-    if name == "head":
-        return x.reshape(batch_size, -1)
-
-    raise ValueError(name)
+    return x
 
 def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     layer_names = [
@@ -130,10 +113,10 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
 
         ref = torch_acts[name].detach().cpu().float()
 
-        raw = ttnn.to_torch(ttnn_acts[name]).detach().cpu().float()
+        # raw = ttnn.to_torch(ttnn_acts[name]).detach().cpu().float()
         # print(name, "raw shape from to_torch:", tuple(raw.shape))
 
-        got = ttnn_act_to_torch(name, ttnn_acts[name], batch_size)
+        got = ttnn_act_to_torch(ref, ttnn_acts[name])
 
         same_shape = tuple(ref.shape) == tuple(got.shape)
         layer_pcc = compute_pcc(ref, got) if same_shape else float("nan")
@@ -157,7 +140,7 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             for i in range(batch_size):
                 sample_pccs.append(compute_pcc(ref[i], got[i]))
             results[name]["per_sample_pcc"] = sample_pccs
-            print(f"  per-sample: {[round(v, 6) for v in sample_pccs]}")
+            # print(f"  per-sample: {[round(v, 6) for v in sample_pccs]}")
 
     print("-" * 90)
     return results
@@ -214,10 +197,10 @@ def main():
 
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
-    NUM_ITERS = 20
-    BATCH_SIZE = 8
-    HEIGHT = 32
-    WIDTH = 32
+    NUM_ITERS = 1
+    BATCH_SIZE = 1
+    HEIGHT = 224
+    WIDTH = 224
     PCC_THRESHOLD = 0.99
 
     is_tracy_run = os.environ.get("TTNN_OP_PROFILER") == "1"
@@ -235,6 +218,7 @@ def main():
     # Create TTNN model
     # -------------------------
     ttnn_device = ttnn.open_device(device_id=0, l1_small_size=8192)
+    
 
     try:
         ttnn_model = load_resnet18_from_torch_checkpoint(
@@ -266,11 +250,20 @@ def main():
 
 
             # TTNN forward
+            shard_config = ttnn.create_sharded_memory_config(  
+                shape=(BATCH_SIZE, 224, 224, 3),  
+                core_grid=ttnn.CoreGrid(x=2, y=2),  
+                strategy=ttnn.ShardStrategy.HEIGHT,  
+                orientation=ttnn.ShardOrientation.ROW_MAJOR,  
+                use_height_and_width_as_shard_shape=False,  
+            )
+
             ttnn_input = ttnn.from_torch(
                 torch_input_nhwc,
                 device=ttnn_device,
                 dtype=ttnn.bfloat16,
                 layout=ttnn.ROW_MAJOR_LAYOUT,
+                memory_config=shard_config,
             )
 
             # benchmark_ttnn_inference(
@@ -296,13 +289,13 @@ def main():
             max_abs_diff = torch.max(torch.abs(torch_output - ttnn_output_torch)).item()
             mean_abs_diff = torch.mean(torch.abs(torch_output - ttnn_output_torch)).item()
 
-            # print("torch output shape:", tuple(torch_output.shape))
-            # print("ttnn output shape:", tuple(ttnn_output_torch.shape))
-            # print("torch output:", tuple(torch_output))
-            # print("ttnn output:", tuple(ttnn_output_torch))
-            # print("PCC =", pcc)
-            # print("Max abs diff =", max_abs_diff)
-            # print("Mean abs diff =", mean_abs_diff)
+            print("torch output shape:", tuple(torch_output.shape))
+            print("ttnn output shape:", tuple(ttnn_output_torch.shape))
+            print("torch output:", tuple(torch_output))
+            print("ttnn output:", tuple(ttnn_output_torch))
+            print("PCC =", pcc)
+            print("Max abs diff =", max_abs_diff)
+            print("Mean abs diff =", mean_abs_diff)
 
             worst_pcc = min(worst_pcc, pcc)
             worst_max_abs_diff = max(worst_max_abs_diff, max_abs_diff)
@@ -348,3 +341,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+

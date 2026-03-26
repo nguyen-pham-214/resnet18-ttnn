@@ -288,46 +288,49 @@ class ResNet18:
         acts = {}
         shapes = {}
 
-        acts["input"] = input_tensor
+        acts["input"] = ttnn.to_torch(input_tensor).detach().cpu().float()
         shapes["input"] = tuple(input_tensor.shape)
         # print(f"MEMORY CONFIG - INPUT: {ttnn.get_memory_config(input_tensor)}")
+        # breakpoint()
 
         # input stem
         x = self.stem(input_tensor)
-        acts["stem"] = x
+        acts["stem"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["stem"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - STEM: {ttnn.get_memory_config(x)}")
 
+        # breakpoint()
         # residual layer
         x = self.layer1(x)
-        acts["layer1"] = x
+        acts["layer1"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["layer1"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 1: {ttnn.get_memory_config(x)}")
+        # breakpoint()
 
         x = self.layer2(x)
-        acts["layer2"] = x
+        acts["layer2"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["layer2"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 2: {ttnn.get_memory_config(x)}")
-
+        # breakpoint()
 
         x = self.layer3(x)
-        acts["layer3"] = x
+        acts["layer3"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["layer3"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 3: {ttnn.get_memory_config(x)}")
-
+        # breakpoint()
 
         x = self.layer4(x)
-        acts["layer4"] = x
+        acts["layer4"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["layer4"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - LAYER 4: {ttnn.get_memory_config(x)}")
-
+        # breakpoint()
 
         # head classification
         x = self.head(x)
-        acts["head"] = x
+        acts["head"] = ttnn.to_torch(x).detach().cpu().float()
         shapes["head"] = tuple(x.shape)
         # print(f"MEMORY CONFIG - HEAD: {ttnn.get_memory_config(x)}")
-
+        # breakpoint()
 
         return x, acts, shapes
 

@@ -102,6 +102,7 @@ class ResNetLayer:
                 conv1_config=self.conv2d_config.get(f"{config_prefix}.0"),
                 conv2_config=self.conv2d_config.get(f"{config_prefix}.1"),
                 shortcut_conv_config=self.conv2d_config.get(f"{config_prefix}.shortcut"),
+                layer_id = self.layer_id,
             )
 
             self.blocks.append(block)
@@ -114,6 +115,7 @@ class ResNetLayer:
         self.output_width = current_width
 
     def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+        print(f"Layer {self.layer_id}")
         x = input_tensor
         for block in self.blocks:
             x = block(x)

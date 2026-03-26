@@ -69,6 +69,8 @@ class InputStem:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
     def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+        # breakpoint()
+        # print(self.conv2d_config)
         return ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv_weight,
