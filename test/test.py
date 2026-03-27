@@ -86,9 +86,6 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         "layer2",
         "layer3",
         "layer4",
-        # "prepool",
-        # "avgpool",
-        # "flatten",
         "head",
     ]
 
@@ -112,9 +109,6 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             continue
 
         ref = torch_acts[name].detach().cpu().float()
-
-        # raw = ttnn.to_torch(ttnn_acts[name]).detach().cpu().float()
-        # print(name, "raw shape from to_torch:", tuple(raw.shape))
 
         got = ttnn_act_to_torch(ref, ttnn_acts[name])
 
@@ -140,58 +134,10 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             for i in range(batch_size):
                 sample_pccs.append(compute_pcc(ref[i], got[i]))
             results[name]["per_sample_pcc"] = sample_pccs
-            # print(f"  per-sample: {[round(v, 6) for v in sample_pccs]}")
 
     print("-" * 90)
     return results
 
-
-# def benchmark_ttnn_inference(model, input_tensor, device, warmup=5, runs=20):
-#     for _ in range(warmup):
-#         model.forward(input_tensor)
-#         ttnn.synchronize_device(device)
-
-#     start = time.perf_counter()
-
-#     for _ in range(runs):
-#         model.forward(input_tensor)
-
-#     ttnn.synchronize_device(device)
-#     end = time.perf_counter()
-
-#     total_time = end - start
-#     latency_per_run = total_time / runs
-#     fps = runs / total_time
-#     samples_per_sec = (runs * input_tensor.shape[0]) / total_time
-
-#     print(f"TTNN latency/run: {latency_per_run:.6f} s")
-#     print(f"TTNN FPS: {fps:.2f}")
-#     print(f"TTNN samples/sec: {samples_per_sec:.2f}")
-
-#     return {
-#         "total_time_s": total_time,
-#         "latency_s": latency_per_run,
-#         "fps": fps,
-#         "samples_per_sec": samples_per_sec,
-#     }
-
-def safe_read_device_profiler(device):
-    candidates = [
-        "ReadDeviceProfiler",
-        "read_device_profiler",
-        "DumpDeviceProfiler",
-        "dump_device_profiler",
-    ]
-
-    for name in candidates:
-        fn = getattr(ttnn, name, None)
-        if callable(fn):
-            print(f"[PROFILER] calling ttnn.{name}(device)")
-            fn(device)
-            return
-
-    print("[PROFILER] no device-profiler read function found")
-    print([x for x in dir(ttnn) if "Profiler" in x or "profiler" in x])
 
 def main():
 
@@ -202,10 +148,6 @@ def main():
     HEIGHT = 224
     WIDTH = 224
     PCC_THRESHOLD = 0.99
-
-    is_tracy_run = os.environ.get("TTNN_OP_PROFILER") == "1"
-    bench_warmup = 0 if is_tracy_run else 5
-    bench_runs = 1 if is_tracy_run else 20
 
     # -------------------------
     # Create torch reference model
@@ -266,18 +208,9 @@ def main():
                 memory_config=shard_config,
             )
 
-            # benchmark_ttnn_inference(
-            #     ttnn_model,
-            #     ttnn_input,
-            #     ttnn_device,
-            #     warmup=bench_warmup,
-            #     runs=bench_runs,
-            # )
-
 
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
             ttnn.synchronize_device(ttnn_device)
-            # safe_read_device_profiler(ttnn_device)
 
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
 
@@ -319,8 +252,6 @@ def main():
         print("Worst mean abs diff =", worst_mean_abs_diff)
 
         print_shape_comparison_table(torch_shapes, ttnn_shapes)
-
-        results = compare_acts(ttnn_acts, torch_acts, per_sample=True)
 
         if failed_iters:
             print("\n[FAILED ITERS]")

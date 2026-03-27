@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 import ttnn
-import torch
-
 
 @dataclass
 class InputStemWeights:
