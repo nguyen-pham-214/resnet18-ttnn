@@ -1,0 +1,198 @@
+Detected CSV format: v2
+Architecture: wormhole, Worker cores: 64
+Sorting CSV by 'HOST START TS' column...
+No signposts found in the file. Using the entire file for analysis.
+Detected data from 1 devices. Merging device data...
+
+🚀 Performance Report 🚀
+========================
+
+ID  Total %  Bound  OP Code                                                                          Device   Device Time  Op-to-Op Gap  Cores  DRAM     DRAM %  FLOPs        FLOPs %  Math Fidelity            
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 2    0.0 %         ReshardDeviceOperation                                                                 0         7 μs                   63                                                BF16, BF16 => BF16
+ 3    1.3 %         MoveDeviceOperation                                                                    0         1 μs     43,721 μs     63                                                BF16, BF16 => BF16
+ 4    2.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0         2 μs     67,823 μs     63                                                      BF16 => BF16
+ 5    0.1 %         MoveDeviceOperation                                                                    0         1 μs      1,915 μs     63                                                BF16, BF16 => BF16
+ 6    1.8 %         Conv2d 50176 x 72 x 64 [ABH=25|25 SR]                                                  0        39 μs     61,288 μs     64                   11.9 TFLOPs   18.1 %  HiFi4 BF16 x BF16 => BF16
+ 7    3.9 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs    132,775 μs     63                                                      BF16 => BF16
+ 8    1.6 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs     53,444 μs     64                   32.2 TFLOPs   48.9 %  HiFi4 BF16 x BF16 => BF16
+ 9    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     34,229 μs     63                                                      BF16 => BF16
+10    1.6 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs     55,466 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+11    1.5 %         BinaryNgDeviceOperation                                                                0        32 μs     50,478 μs     64                                                BF16, BF16 => BF16
+12    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     34,344 μs     63                                                      BF16 => BF16
+13    0.0 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs        357 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+14    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     32,621 μs     63                                                      BF16 => BF16
+15    0.0 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs        244 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+16    0.0 %         BinaryNgDeviceOperation                                                                0        32 μs        203 μs     64                                                BF16, BF16 => BF16
+17    1.8 %         ShardedToInterleavedDeviceOperation                                                    0        45 μs     61,657 μs     63                                                      BF16 => BF16
+18    1.1 %         InterleavedToShardedDeviceOperation                                                    0        32 μs     36,860 μs     56                                                BF16, BF16 => BF16
+19    2.8 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | HEIGHT_SHARDED        0         5 μs     97,350 μs     56                                                      BF16 => BF16
+20    0.0 %         MoveDeviceOperation                                                                    0         3 μs      1,559 μs     56                                                BF16, BF16 => BF16
+21    1.5 %         Conv2d 12544 x 64 x 128 [ABH=7|7 SR]                                                   0        11 μs     52,877 μs     56                   17.9 TFLOPs   27.2 %  HiFi4 BF16 x BF16 => BF16
+22    0.0 %         ShardedToInterleavedDeviceOperation                                                    0        23 μs      1,428 μs     56                                                      BF16 => BF16
+23    1.8 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        26 μs     62,691 μs     63                                                      BF16 => BF16
+24    1.6 %         Conv2d 12544 x 576 x 128 [ABH=7|7 SR]                                                  0        57 μs     53,048 μs     64                   32.5 TFLOPs   49.4 %  HiFi4 BF16 x BF16 => BF16
+25    4.7 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    161,472 μs     63                                                      BF16 => BF16
+26    1.5 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs     52,289 μs     64                   36.0 TFLOPs   54.7 %  HiFi4 BF16 x BF16 => BF16
+27    1.3 %         BinaryNgDeviceOperation                                                                0        35 μs     43,052 μs     64                                                BF16, BF16 => BF16
+28    3.2 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    108,618 μs     63                                                      BF16 => BF16
+29    1.5 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs     51,153 μs     64                   35.9 TFLOPs   54.6 %  HiFi4 BF16 x BF16 => BF16
+30    3.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    102,628 μs     63                                                      BF16 => BF16
+31    0.0 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs        204 μs     64                   35.8 TFLOPs   54.4 %  HiFi4 BF16 x BF16 => BF16
+32    1.2 %         BinaryNgDeviceOperation                                                                0         3 μs     39,993 μs     64                                                BF16, BF16 => BF16
+33    0.3 %         ShardedToInterleavedDeviceOperation                                                    0        24 μs     10,980 μs     63                                                      BF16 => BF16
+34    1.1 %         InterleavedToShardedDeviceOperation                                                    0        17 μs     36,616 μs     49                                                BF16, BF16 => BF16
+35    4.0 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | HEIGHT_SHARDED        0         6 μs    135,254 μs     49                                                      BF16 => BF16
+36    0.0 %         MoveDeviceOperation                                                                    0         3 μs        865 μs     49                                                BF16, BF16 => BF16
+37    1.5 %         Conv2d 3136 x 128 x 256 [ABH=2|2 ADB SR]                                               0        13 μs     51,871 μs     56                   15.8 TFLOPs   24.1 %  HiFi4 BF16 x BF16 => BF16
+38    0.1 %         ShardedToInterleavedDeviceOperation                                                    0        12 μs      1,778 μs     49                                                      BF16 => BF16
+39    3.1 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        22 μs    104,714 μs     63                                                      BF16 => BF16
+40    1.7 %         Conv2d 3136 x 1152 x 256 [ABH=2|2 ADB SR]                                              0        88 μs     57,182 μs     64                   21.0 TFLOPs   31.9 %  HiFi4 BF16 x BF16 => BF16
+41    4.8 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    163,549 μs     63                                                      BF16 => BF16
+42    1.5 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs     52,008 μs     64                   21.7 TFLOPs   33.0 %  HiFi4 BF16 x BF16 => BF16
+43    1.2 %         BinaryNgDeviceOperation                                                                0        26 μs     39,662 μs     64                                                BF16, BF16 => BF16
+44    3.3 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    112,285 μs     63                                                      BF16 => BF16
+45    1.8 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs     59,863 μs     64                   21.7 TFLOPs   33.0 %  HiFi4 BF16 x BF16 => BF16
+46    3.1 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs    104,497 μs     63                                                      BF16 => BF16
+47    0.0 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs         57 μs     64                   21.8 TFLOPs   33.1 %  HiFi4 BF16 x BF16 => BF16
+48    1.2 %         BinaryNgDeviceOperation                                                                0         2 μs     41,341 μs     64                                                BF16, BF16 => BF16
+49    0.2 %         ShardedToInterleavedDeviceOperation                                                    0        12 μs      6,953 μs     63                                                      BF16 => BF16
+50    0.1 %         InterleavedToShardedDeviceOperation                                                    0         8 μs      1,780 μs     56                                                BF16, BF16 => BF16
+51    4.0 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | BLOCK_SHARDED         0         4 μs    137,838 μs     56                                                      BF16 => BF16
+52    0.0 %         MoveDeviceOperation                                                                    0         2 μs        990 μs     56                                                BF16, BF16 => BF16
+53    1.4 %         Conv2d 800 x 256 x 512 [ABH=4|4 ADB SR]                                                0        16 μs     48,806 μs     56                   12.8 TFLOPs   19.5 %  HiFi4 BF16 x BF16 => BF16
+54    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs      1,160 μs     56                                                      BF16 => BF16
+55    3.1 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        30 μs    104,914 μs     63                                                      BF16 => BF16
+56    1.9 %         Conv2d 800 x 2304 x 512 [ABH=1|1 ADB SR]                                               0       252 μs     63,323 μs     64                    7.5 TFLOPs   11.4 %  HiFi4 BF16 x BF16 => BF16
+57    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs      1,055 μs     63                                                      BF16 => BF16
+58    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs      1,166 μs     56                                                BF16, BF16 => BF16
+59    3.7 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs    125,489 μs     56                                                      BF16 => BF16
+60    0.0 %         MoveDeviceOperation                                                                    0         1 μs        866 μs     56                                                BF16, BF16 => BF16
+61    1.7 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs     56,850 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+62    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs        403 μs     56                                                      BF16 => BF16
+63    1.2 %         BinaryNgDeviceOperation                                                                0        24 μs     39,786 μs     64                                                BF16, BF16 => BF16
+64    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs        698 μs     56                                                BF16, BF16 => BF16
+65    3.2 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs    109,341 μs     56                                                      BF16 => BF16
+66    0.0 %         MoveDeviceOperation                                                                    0         1 μs         24 μs     56                                                BF16, BF16 => BF16
+67    1.6 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs     54,259 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+68    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         6 μs        230 μs     56                                                      BF16 => BF16
+69    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs        247 μs     56                                                BF16, BF16 => BF16
+70    2.3 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs     79,889 μs     56                                                      BF16 => BF16
+71    0.0 %         MoveDeviceOperation                                                                    0         1 μs         16 μs     56                                                BF16, BF16 => BF16
+72    0.0 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs        225 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+73    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs          2 μs     56                                                      BF16 => BF16
+74    0.0 %         BinaryNgDeviceOperation                                                                0        23 μs        186 μs     64                                                BF16, BF16 => BF16
+75    1.5 %         ReduceDeviceOperation                                                                  0        16 μs     51,988 μs     16                                                      BF16 => BF16
+76    1.7 %   SLOW  Matmul 32 x 512 x 32                                                                   0         7 μs     58,409 μs      1  10 GB/s   3.6 %   0.2 TFLOPs    7.8 %  HiFi2 BF16 x BF16 => BF16
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    100.0 %         75 device ops, 0 host ops, 0 signposts                                                       2,860 μs  3,415,203 μs                                                                         
+
+💡 Advice 💡
+============
+
+High Op-to-Op Gap
+----------------
+ 3    1.3 %         MoveDeviceOperation                                                                    0         1 μs     43,721 μs     63                                                BF16, BF16 => BF16
+ 4    2.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0         2 μs     67,823 μs     63                                                      BF16 => BF16
+ 5    0.1 %         MoveDeviceOperation                                                                    0         1 μs      1,915 μs     63                                                BF16, BF16 => BF16
+ 6    1.8 %         Conv2d 50176 x 72 x 64 [ABH=25|25 SR]                                                  0        39 μs     61,288 μs     64                   11.9 TFLOPs   18.1 %  HiFi4 BF16 x BF16 => BF16
+ 7    3.9 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs    132,775 μs     63                                                      BF16 => BF16
+ 8    1.6 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs     53,444 μs     64                   32.2 TFLOPs   48.9 %  HiFi4 BF16 x BF16 => BF16
+ 9    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     34,229 μs     63                                                      BF16 => BF16
+10    1.6 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs     55,466 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+11    1.5 %         BinaryNgDeviceOperation                                                                0        32 μs     50,478 μs     64                                                BF16, BF16 => BF16
+12    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     34,344 μs     63                                                      BF16 => BF16
+13    0.0 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs        357 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+14    1.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs     32,621 μs     63                                                      BF16 => BF16
+15    0.0 %         Conv2d 50176 x 576 x 64 [ABH=25|25 SR]                                                 0       115 μs        244 μs     64                   32.2 TFLOPs   49.0 %  HiFi4 BF16 x BF16 => BF16
+16    0.0 %         BinaryNgDeviceOperation                                                                0        32 μs        203 μs     64                                                BF16, BF16 => BF16
+17    1.8 %         ShardedToInterleavedDeviceOperation                                                    0        45 μs     61,657 μs     63                                                      BF16 => BF16
+18    1.1 %         InterleavedToShardedDeviceOperation                                                    0        32 μs     36,860 μs     56                                                BF16, BF16 => BF16
+19    2.8 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | HEIGHT_SHARDED        0         5 μs     97,350 μs     56                                                      BF16 => BF16
+20    0.0 %         MoveDeviceOperation                                                                    0         3 μs      1,559 μs     56                                                BF16, BF16 => BF16
+21    1.5 %         Conv2d 12544 x 64 x 128 [ABH=7|7 SR]                                                   0        11 μs     52,877 μs     56                   17.9 TFLOPs   27.2 %  HiFi4 BF16 x BF16 => BF16
+22    0.0 %         ShardedToInterleavedDeviceOperation                                                    0        23 μs      1,428 μs     56                                                      BF16 => BF16
+23    1.8 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        26 μs     62,691 μs     63                                                      BF16 => BF16
+24    1.6 %         Conv2d 12544 x 576 x 128 [ABH=7|7 SR]                                                  0        57 μs     53,048 μs     64                   32.5 TFLOPs   49.4 %  HiFi4 BF16 x BF16 => BF16
+25    4.7 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    161,472 μs     63                                                      BF16 => BF16
+26    1.5 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs     52,289 μs     64                   36.0 TFLOPs   54.7 %  HiFi4 BF16 x BF16 => BF16
+27    1.3 %         BinaryNgDeviceOperation                                                                0        35 μs     43,052 μs     64                                                BF16, BF16 => BF16
+28    3.2 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    108,618 μs     63                                                      BF16 => BF16
+29    1.5 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs     51,153 μs     64                   35.9 TFLOPs   54.6 %  HiFi4 BF16 x BF16 => BF16
+30    3.0 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    102,628 μs     63                                                      BF16 => BF16
+31    0.0 %         Conv2d 12544 x 1152 x 128 [ABH=7|7 SR]                                                 0       103 μs        204 μs     64                   35.8 TFLOPs   54.4 %  HiFi4 BF16 x BF16 => BF16
+32    1.2 %         BinaryNgDeviceOperation                                                                0         3 μs     39,993 μs     64                                                BF16, BF16 => BF16
+33    0.3 %         ShardedToInterleavedDeviceOperation                                                    0        24 μs     10,980 μs     63                                                      BF16 => BF16
+34    1.1 %         InterleavedToShardedDeviceOperation                                                    0        17 μs     36,616 μs     49                                                BF16, BF16 => BF16
+35    4.0 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | HEIGHT_SHARDED        0         6 μs    135,254 μs     49                                                      BF16 => BF16
+36    0.0 %         MoveDeviceOperation                                                                    0         3 μs        865 μs     49                                                BF16, BF16 => BF16
+37    1.5 %         Conv2d 3136 x 128 x 256 [ABH=2|2 ADB SR]                                               0        13 μs     51,871 μs     56                   15.8 TFLOPs   24.1 %  HiFi4 BF16 x BF16 => BF16
+38    0.1 %         ShardedToInterleavedDeviceOperation                                                    0        12 μs      1,778 μs     49                                                      BF16 => BF16
+39    3.1 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        22 μs    104,714 μs     63                                                      BF16 => BF16
+40    1.7 %         Conv2d 3136 x 1152 x 256 [ABH=2|2 ADB SR]                                              0        88 μs     57,182 μs     64                   21.0 TFLOPs   31.9 %  HiFi4 BF16 x BF16 => BF16
+41    4.8 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    163,549 μs     63                                                      BF16 => BF16
+42    1.5 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs     52,008 μs     64                   21.7 TFLOPs   33.0 %  HiFi4 BF16 x BF16 => BF16
+43    1.2 %         BinaryNgDeviceOperation                                                                0        26 μs     39,662 μs     64                                                BF16, BF16 => BF16
+44    3.3 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        13 μs    112,285 μs     63                                                      BF16 => BF16
+45    1.8 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs     59,863 μs     64                   21.7 TFLOPs   33.0 %  HiFi4 BF16 x BF16 => BF16
+46    3.1 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        14 μs    104,497 μs     63                                                      BF16 => BF16
+47    0.0 %         Conv2d 3136 x 2304 x 256 [ABH=2|2 ADB SR]                                              0       170 μs         57 μs     64                   21.8 TFLOPs   33.1 %  HiFi4 BF16 x BF16 => BF16
+48    1.2 %         BinaryNgDeviceOperation                                                                0         2 μs     41,341 μs     64                                                BF16, BF16 => BF16
+49    0.2 %         ShardedToInterleavedDeviceOperation                                                    0        12 μs      6,953 μs     63                                                      BF16 => BF16
+50    0.1 %         InterleavedToShardedDeviceOperation                                                    0         8 μs      1,780 μs     56                                                BF16, BF16 => BF16
+51    4.0 %         HaloDeviceOperation w=(1,1) s=(2,2) p=((0, 0), (0, 0)) d=(1,1) | BLOCK_SHARDED         0         4 μs    137,838 μs     56                                                      BF16 => BF16
+52    0.0 %         MoveDeviceOperation                                                                    0         2 μs        990 μs     56                                                BF16, BF16 => BF16
+53    1.4 %         Conv2d 800 x 256 x 512 [ABH=4|4 ADB SR]                                                0        16 μs     48,806 μs     56                   12.8 TFLOPs   19.5 %  HiFi4 BF16 x BF16 => BF16
+54    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs      1,160 μs     56                                                      BF16 => BF16
+55    3.1 %         HaloDeviceOperation w=(3,3) s=(2,2) p=((1, 1), (1, 1)) d=(1,1) | HEIGHT_SHARDED        0        30 μs    104,914 μs     63                                                      BF16 => BF16
+56    1.9 %         Conv2d 800 x 2304 x 512 [ABH=1|1 ADB SR]                                               0       252 μs     63,323 μs     64                    7.5 TFLOPs   11.4 %  HiFi4 BF16 x BF16 => BF16
+57    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs      1,055 μs     63                                                      BF16 => BF16
+58    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs      1,166 μs     56                                                BF16, BF16 => BF16
+59    3.7 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs    125,489 μs     56                                                      BF16 => BF16
+60    0.0 %         MoveDeviceOperation                                                                    0         1 μs        866 μs     56                                                BF16, BF16 => BF16
+61    1.7 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs     56,850 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+62    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         7 μs        403 μs     56                                                      BF16 => BF16
+63    1.2 %         BinaryNgDeviceOperation                                                                0        24 μs     39,786 μs     64                                                BF16, BF16 => BF16
+64    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs        698 μs     56                                                BF16, BF16 => BF16
+65    3.2 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs    109,341 μs     56                                                      BF16 => BF16
+66    0.0 %         MoveDeviceOperation                                                                    0         1 μs         24 μs     56                                                BF16, BF16 => BF16
+67    1.6 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs     54,259 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+68    0.0 %         ShardedToInterleavedDeviceOperation                                                    0         6 μs        230 μs     56                                                      BF16 => BF16
+69    0.0 %         InterleavedToShardedDeviceOperation                                                    0         5 μs        247 μs     56                                                BF16, BF16 => BF16
+70    2.3 %         HaloDeviceOperation w=(3,3) s=(1,1) p=((1, 1), (1, 1)) d=(1,1) | BLOCK_SHARDED         0         3 μs     79,889 μs     56                                                      BF16 => BF16
+71    0.0 %         MoveDeviceOperation                                                                    0         1 μs         16 μs     56                                                BF16, BF16 => BF16
+72    0.0 %         Conv2d 800 x 4608 x 512 [ABH=4|4 ADB SR]                                               0       140 μs        225 μs     56                   26.9 TFLOPs   40.9 %  HiFi4 BF16 x BF16 => BF16
+74    0.0 %         BinaryNgDeviceOperation                                                                0        23 μs        186 μs     64                                                BF16, BF16 => BF16
+75    1.5 %         ReduceDeviceOperation                                                                  0        16 μs     51,988 μs     16                                                      BF16 => BF16
+76    1.7 %   SLOW  Matmul 32 x 512 x 32                                                                   0         7 μs     58,409 μs      1  10 GB/s   3.6 %   0.2 TFLOPs    7.8 %  HiFi2 BF16 x BF16 => BF16
+
+These ops have a >6 μs gap since the previous operation. Running with tracing could save 3414763 μs (99.9% of overall time)
+Alternatively ensure device is not waiting for the host and use device.enable_async(True). Experts can try moving runtime args in the kernels to compile-time args.
+
+Matmul Optimization
+-------------------
+76    1.7 %   SLOW  Matmul 32 x 512 x 32                                                                   0         7 μs     58,409 μs      1  10 GB/s   3.6 %   0.2 TFLOPs    7.8 %  HiFi2 BF16 x BF16 => BF16
+- If possible place input 0 in L1 (currently in DEV_1_DRAM_INTERLEAVED)
+- No program_config specified, try using one to override in0_block_w and out_subblock_h/w
+
+
+📊 Stacked report 📊
+====================
+
+Total %  Op Code                                                     Device Time Sum  Op Count  Op Category  Min FLOPs  Max FLOPs  Mean FLOPs  Std FLOPs  Weighted Mean FLOPs
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+60.79 %  Conv2d (in0:height_sharded)                                     1,738.67 μs        16      Compute    11.40 %    54.73 %     38.81 %    14.03 %              38.00 %
+15.29 %  Conv2d (in0:block_sharded)                                        437.45 μs         4      Compute    19.45 %    40.90 %     35.53 %    10.72 %              40.09 %
+ 7.94 %  HaloDeviceOperation (in0:height_sharded)                          227.16 μs        16           DM                                                                  
+ 4.58 %  BinaryNgDeviceOperation (in0:height_sharded)                      131.12 μs         6      Compute                                                                  
+ 4.29 %  ShardedToInterleavedDeviceOperation (in0:height_sharded)          122.62 μs         6           DM                                                                  
+ 2.51 %  InterleavedToShardedDeviceOperation (in0:dram_interleaved)         71.65 μs         6           DM                                                                  
+ 1.63 %  BinaryNgDeviceOperation (in0:dram_interleaved)                     46.64 μs         2      Compute                                                                  
+ 0.92 %  ShardedToInterleavedDeviceOperation (in0:block_sharded)            26.35 μs         4           DM                                                                  
+ 0.58 %  ReduceDeviceOperation (in0:dram_interleaved)                       16.48 μs         1      Compute                                                                  
+ 0.50 %  HaloDeviceOperation (in0:block_sharded)                            14.36 μs         4           DM                                                                  
+ 0.30 %  MoveDeviceOperation (in0:height_sharded)                            8.51 μs         4           DM                                                                  
+ 0.24 %  ReshardDeviceOperation (in0:height_sharded)                         6.88 μs         1           DM                                                                  
+ 0.23 %  Matmul (in0:dram_interleaved)                                       6.53 μs         1      Compute     7.81 %     7.81 %      7.81 %                          7.81 %
+ 0.20 %  MoveDeviceOperation (in0:block_sharded)                             5.67 μs         4           DM                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------

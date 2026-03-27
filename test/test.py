@@ -159,7 +159,7 @@ def main():
     # -------------------------
     # Create TTNN model
     # -------------------------
-    ttnn_device = ttnn.open_device(device_id=0, l1_small_size=8192)
+    ttnn_device = ttnn.open_device(device_id=0, l1_small_size=32768)
     
 
     try:

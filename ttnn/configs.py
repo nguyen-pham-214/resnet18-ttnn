@@ -12,10 +12,10 @@ conv2d_config = {
         # enable_act_double_buffer=True,
         # reallocate_halo_output=True,
 
-        enable_activation_reuse=True,
+        # enable_activation_reuse=True,
         force_split_reader=True,
 
-        # act_block_h_override=32 * 7,
+        # act_block_h_override=64,
     ),
 
     # layer 1 : (1, 1, 50176, 64)
@@ -29,6 +29,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv1.0.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -39,6 +41,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv1.1.0": ttnn.Conv2dConfig(
         activation=ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU),
@@ -50,6 +54,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv1.1.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -60,6 +66,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
 
     # layer 2 : (1, 1, 50176, 64) 
@@ -73,6 +81,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv2.0.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -83,6 +93,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv2.0.shortcut": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -93,6 +105,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv2.1.0": ttnn.Conv2dConfig(
         activation=ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU),
@@ -104,6 +118,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
     "conv2.1.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -114,6 +130,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=64,
     ),
 
     # layer 3 : (1, 1, 12544, 128) 
@@ -127,6 +145,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=32,
     ),
     "conv3.0.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -137,6 +157,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=32,
     ),
     "conv3.0.shortcut": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -147,6 +169,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=32,
     ),
     "conv3.1.0": ttnn.Conv2dConfig(
         activation=ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU),
@@ -158,6 +182,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=32,
     ),
     "conv3.1.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -168,6 +194,8 @@ conv2d_config = {
         # reallocate_halo_output=True,
 
         force_split_reader=True,
+
+        # act_block_h_override=32,
     ),
 
 
