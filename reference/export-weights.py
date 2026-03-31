@@ -1,5 +1,5 @@
 import torch
-from resnet18 import create_torch_model
+from resnet18_torch import create_torch_model
 
 def main():
     device = torch.device("cpu")

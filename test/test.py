@@ -69,14 +69,26 @@ def ttnn_act_to_torch(ref: torch.Tensor, x_ttnn) -> torch.Tensor:
     if tuple(x.shape) == tuple(ref.shape):
         return x.contiguous()
 
-    if x.ndim == 4 and ref.ndim == 4:
-        if x.shape[0] == ref.shape[0] and x.shape[-1] == ref.shape[1]:
+    # TTNN feature maps seem to come back as (1, 1, B*H*W, C)
+    if ref.ndim == 4:
+        b, c, h, w = ref.shape
+
+        if x.ndim == 4 and tuple(x.shape) == (1, 1, b * h * w, c):
+            x = x.reshape(b, h, w, c).permute(0, 3, 1, 2).contiguous()
+            return x
+
+        # already NHWC
+        if x.ndim == 4 and tuple(x.shape) == (b, h, w, c):
             x = x.permute(0, 3, 1, 2).contiguous()
+            return x
 
-    if x.numel() == ref.numel():
-        x = x.reshape_as(ref).contiguous()
+    # head is already correct
+    if ref.ndim == 2 and x.numel() == ref.numel():
+        return x.reshape_as(ref).contiguous()
 
-    return x
+    raise RuntimeError(
+        f"Cannot safely convert TTNN activation: raw shape={tuple(x.shape)}, ref shape={tuple(ref.shape)}"
+    )
 
 def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     layer_names = [
@@ -86,9 +98,12 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         "layer2",
         "layer3",
         "layer4",
+        "avgpool",
+        "flatten",
         "head",
     ]
 
+    print(f"===============TTNN activations: {list(ttnn_acts.keys())}")
     if "input" not in torch_acts:
         raise KeyError("torch_acts must contain key 'input'")
 
@@ -109,18 +124,49 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             continue
 
         ref = torch_acts[name].detach().cpu().float()
+        ttnn_raw = ttnn_acts[name]
 
-        got = ttnn_act_to_torch(ref, ttnn_acts[name])
+        # ---- DEBUG: BEFORE conversion ----
+        print(f"\n[DEBUG][{name}] BEFORE conversion")
+        print(f"  torch ref shape: {tuple(ref.shape)}, dtype={ref.dtype}, stride={ref.stride()}, contiguous={ref.is_contiguous()}")
+
+        print(f"  ttnn type: {type(ttnn_raw)}")
+        if hasattr(ttnn_raw, "shape"):
+            try:
+                print(f"  ttnn shape: {ttnn_raw.shape}")
+            except:
+                pass
+        if hasattr(ttnn_raw, "layout"):
+            try:
+                print(f"  ttnn layout: {ttnn_raw.layout}")
+            except:
+                pass
+        if hasattr(ttnn_raw, "dtype"):
+            try:
+                print(f"  ttnn dtype: {ttnn_raw.dtype}")
+            except:
+                pass
+
+        try:
+            tmp = ttnn.to_torch(ttnn_raw)
+            print(f"  raw to_torch shape: {tuple(tmp.shape)}, stride={tmp.stride()}, contiguous={tmp.is_contiguous()}")
+            print(f"  raw sample: {tmp.reshape(-1)[:5]}")
+        except Exception as e:
+            print(f"  to_torch failed: {e}")
+
+        # ---- NORMAL PATH ----
+        got = ttnn_act_to_torch(ref, ttnn_raw)
+
+        # ---- DEBUG: AFTER conversion ----
+        print(f"[DEBUG][{name}] AFTER conversion")
+        print(f"  got shape: {tuple(got.shape)}, stride={got.stride()}, contiguous={got.is_contiguous()}")
+        print(f"  got sample: {got.reshape(-1)[:5]}")
+        print(f"  ref sample: {ref.reshape(-1)[:5]}")
 
         same_shape = tuple(ref.shape) == tuple(got.shape)
         layer_pcc = compute_pcc(ref, got) if same_shape else float("nan")
 
-        results[name] = {
-            "torch_shape": tuple(ref.shape),
-            "ttnn_shape": tuple(got.shape),
-            "shape_match": same_shape,
-            "pcc": layer_pcc,
-        }
+        print(f"  PCC: {layer_pcc:.6f}")
 
         print(
             f"{name:<10} | "
@@ -128,12 +174,6 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
             f"{str(tuple(got.shape)):<20} | "
             f"{layer_pcc:<10.6f}"
         )
-
-        if per_sample and same_shape and ref.shape[0] == batch_size:
-            sample_pccs = []
-            for i in range(batch_size):
-                sample_pccs.append(compute_pcc(ref[i], got[i]))
-            results[name]["per_sample_pcc"] = sample_pccs
 
     print("-" * 90)
     return results
@@ -144,10 +184,12 @@ def main():
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
     NUM_ITERS = 1
-    BATCH_SIZE = 1
+    BATCH_SIZE = 8
+    CHANNELS = 3
     HEIGHT = 224
     WIDTH = 224
     PCC_THRESHOLD = 0.99
+    NUM_CLASSES=1000
 
     # -------------------------
     # Create torch reference model
@@ -159,7 +201,7 @@ def main():
     # -------------------------
     # Create TTNN model
     # -------------------------
-    ttnn_device = ttnn.open_device(device_id=0, l1_small_size=32768)
+    ttnn_device = ttnn.open_device(device_id=0, l1_small_size=8192)
     
 
     try:
@@ -169,7 +211,7 @@ def main():
             batch_size=BATCH_SIZE,
             input_height=HEIGHT,
             input_width=WIDTH,
-            num_classes=10,
+            num_classes=NUM_CLASSES,
             dtype=ttnn.bfloat16,
             head_memory_config=None,
         )
@@ -183,21 +225,34 @@ def main():
             print(f"\n[ITER {i+1}/{NUM_ITERS}]")
 
             torch.manual_seed(i)
-            torch_input_nchw = torch.randn((BATCH_SIZE, 3, HEIGHT, WIDTH), dtype=torch.float32)
-            torch_input_nhwc = torch_input_nchw.permute(0, 2, 3, 1).contiguous().to(torch.bfloat16)
+            torch_input_nchw = torch.randn((BATCH_SIZE, CHANNELS, HEIGHT, WIDTH), dtype=torch.float32)
+            torch_input_nhwc = torch_input_nchw.permute(0, 2, 3, 1)
 
             # Torch forward
             with torch.no_grad():
                 torch_output, torch_acts, torch_shapes = torch_model(torch_input_nchw)
 
 
-            # TTNN forward
+            # # TTNN forward
+            # # Get device grid size  
+            # compute_with_storage_grid_size = ttnn_device.compute_with_storage_grid_size()  
+            # device_grid_size = ttnn.CoreGrid(y=compute_with_storage_grid_size.y, x=compute_with_storage_grid_size.x)  
+            
+            # # Use a more conservative sharding approach  
+            # shard_config = ttnn.create_sharded_memory_config(  
+            #     shape=(BATCH_SIZE, 224, 224, 3),  
+            #     core_grid=device_grid_size,  # Use actual device grid  
+            #     strategy=ttnn.ShardStrategy.HEIGHT,  
+            #     orientation=ttnn.ShardOrientation.ROW_MAJOR,  
+            #     use_height_and_width_as_shard_shape=True,  
+            # )
             shard_config = ttnn.create_sharded_memory_config(  
-                shape=(BATCH_SIZE, 224, 224, 3),  
-                core_grid=ttnn.CoreGrid(x=2, y=2),  
+                # shape=(BATCH_SIZE, 224, 224, 3),
+                shape=(6272, 3),
+                core_grid=ttnn.CoreGrid(x=8, y=8),  
                 strategy=ttnn.ShardStrategy.HEIGHT,  
                 orientation=ttnn.ShardOrientation.ROW_MAJOR,  
-                use_height_and_width_as_shard_shape=False,  
+                use_height_and_width_as_shard_shape=True,  
             )
 
             ttnn_input = ttnn.from_torch(
@@ -208,9 +263,11 @@ def main():
                 memory_config=shard_config,
             )
 
-
+            start = time.time()
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
-            ttnn.synchronize_device(ttnn_device)
+            end = time.time()
+            print(f"==========Time: {end - start:.4f} seconds==========")
+            # ttnn.synchronize_device(ttnn_device)
 
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
 
@@ -218,14 +275,14 @@ def main():
             torch_output = torch_output.reshape(BATCH_SIZE, -1).float()
             ttnn_output_torch = ttnn_output_torch.reshape(BATCH_SIZE, -1).float()
 
+            print("torch output shape:", tuple(torch_output.shape))
+            print("ttnn output shape:", tuple(ttnn_output_torch.shape))
+            # print("torch output:", tuple(torch_output))
+            # print("ttnn output:", tuple(ttnn_output_torch))
+
             pcc = compute_pcc(torch_output, ttnn_output_torch)
             max_abs_diff = torch.max(torch.abs(torch_output - ttnn_output_torch)).item()
             mean_abs_diff = torch.mean(torch.abs(torch_output - ttnn_output_torch)).item()
-
-            print("torch output shape:", tuple(torch_output.shape))
-            print("ttnn output shape:", tuple(ttnn_output_torch.shape))
-            print("torch output:", tuple(torch_output))
-            print("ttnn output:", tuple(ttnn_output_torch))
             print("PCC =", pcc)
             print("Max abs diff =", max_abs_diff)
             print("Mean abs diff =", mean_abs_diff)
@@ -252,6 +309,7 @@ def main():
         print("Worst mean abs diff =", worst_mean_abs_diff)
 
         print_shape_comparison_table(torch_shapes, ttnn_shapes)
+        results = compare_acts(ttnn_acts, torch_acts, per_sample=True)
 
         if failed_iters:
             print("\n[FAILED ITERS]")

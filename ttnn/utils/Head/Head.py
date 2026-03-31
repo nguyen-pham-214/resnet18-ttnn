@@ -11,71 +11,70 @@ class HeadWeights:
 
 
 class ResNetHead:
-    IN_FEATURES = 512
-
     def __init__(
         self,
         *,
         weights: HeadWeights,
         batch_size: int,
-        num_classes: int,
-        input_height: int,
-        input_width: int,
+        in_features: int = 512,
+        num_classes: int = 1000,
+        input_height: int = 7,
+        input_width: int = 7,
+        dtype=ttnn.bfloat16,
         memory_config=None,
     ) -> None:
         self.weights = weights
         self.batch_size = batch_size
+        self.in_features = in_features
         self.num_classes = num_classes
         self.input_height = input_height
         self.input_width = input_width
-        # self.memory_config = memory_config
-
-
-    # def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-    #     x = ttnn.avg_pool2d(
-    #         input_tensor,
-    #         batch_size=self.batch_size,
-    #         input_h=self.input_height,
-    #         input_w=self.input_width,
-    #         channels=self.IN_FEATURES,
-    #         kernel_size=[self.input_height, self.input_width],
-    #         stride=[1, 1],
-    #         padding=[0, 0],
-    #         # memory_config=self.memory_config,
-    #         output_layout=ttnn.TILE_LAYOUT,
-
-    #         applied_shard_scheme=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
-    #         deallocate_input=True,
-    #         reallocate_halo_output=False,
-    #         dtype=ttnn.bfloat16,
-    #     )
-
-    #     # flatten pooled output: [1,1,N, C] -> [N, C]
-    #     x = ttnn.reshape(x, (self.batch_size, self.IN_FEATURES))
-
-    #     x = ttnn.linear(
-    #         x,
-    #         self.weights.fc_weight,
-    #         bias=self.weights.fc_bias,
-    #         # memory_config=self.memory_config,
-    #     )
-    #     return x
-
+        self.dtype = dtype
 
     def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-        x = ttnn.global_avg_pool2d(
-            input_tensor,
-            # memory_config=self.memory_config,
-            dtype=ttnn.bfloat16,
+        shape = [int(d) for d in input_tensor.shape]
+        expected = self.batch_size * self.input_height * self.input_width
+
+        # [1,1,B*H*W,C] -> [B,H,W,C]
+        if shape == [1, 1, expected, self.in_features]:
+            x = ttnn.reshape(
+                input_tensor,
+                (self.batch_size, self.input_height, self.input_width, self.in_features),
+            )
+        else:
+            x = input_tensor
+
+        # flatten spatial -> [B, H*W, C]
+        x = ttnn.reshape(
+            x,
+            (self.batch_size, self.input_height * self.input_width, self.in_features),
         )
 
-        # flatten pooled output: [1, 1, N, C] -> [N, C]
-        x = ttnn.reshape(x, (self.batch_size, self.IN_FEATURES))
+        # manual global average: mean over dim=1
+        x = ttnn.mean(x, dim=1)  # -> [B, C]
 
+        # FC
         x = ttnn.linear(
             x,
             self.weights.fc_weight,
             bias=self.weights.fc_bias,
-            # memory_config=self.memory_config,
         )
+
+        out_shape = [int(d) for d in x.shape]
+
+        if len(out_shape) == 4:
+            _, h, w, c = out_shape
+        elif len(out_shape) == 3:
+            h, w, c = out_shape
+        elif len(out_shape) == 2:
+            _, c = out_shape
+            h, w = 1, 1
+        elif len(out_shape) == 1:
+            c = out_shape[0]
+            h, w = 1, 1
+        else:
+            raise RuntimeError(f"Unsupported final output rank: shape={x.shape}")
+
+        self.final_dimension = (c, h, w)
+
         return x

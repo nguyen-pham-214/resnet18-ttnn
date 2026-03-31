@@ -63,9 +63,9 @@ class ResNetLayer:
 
         return BasicBlockWeights(
             conv1_weight=self.weights[f"{prefix}.conv1.weight"],
-            conv1_bias=self.weights[f"{prefix}.conv1.bias"],
+            conv1_bias=self.weights.get(f"{prefix}.conv1.bias"),
             conv2_weight=self.weights[f"{prefix}.conv2.weight"],
-            conv2_bias=self.weights[f"{prefix}.conv2.bias"],
+            conv2_bias=self.weights.get(f"{prefix}.conv2.bias"),
             shortcut_conv_weight=self.weights.get(f"{prefix}.shortcut.0.weight") if use_projection else None,
             shortcut_conv_bias=self.weights.get(f"{prefix}.shortcut.0.bias") if use_projection else None,
         )
@@ -102,7 +102,7 @@ class ResNetLayer:
                 conv1_config=self.conv2d_config.get(f"{config_prefix}.0"),
                 conv2_config=self.conv2d_config.get(f"{config_prefix}.1"),
                 shortcut_conv_config=self.conv2d_config.get(f"{config_prefix}.shortcut"),
-                layer_id = self.layer_id,
+                layer_id=self.layer_id,
             )
 
             self.blocks.append(block)
@@ -111,12 +111,55 @@ class ResNetLayer:
             current_height = block.output_height
             current_width = block.output_width
 
+        self.output_channels = current_in_channels
         self.output_height = current_height
         self.output_width = current_width
 
-    def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
-        print(f"Layer {self.layer_id}")
+    def summary(self) -> None:
+        print(f"# Layer {self.layer_id}")
+        print(f"input: (N, {self.in_channels}, {self.input_height}, {self.input_width})")
+
+        current_in_channels = self.in_channels
+        current_height = self.input_height
+        current_width = self.input_width
+
+        for block_id, block in enumerate(self.blocks):
+            stride = self.first_stride if block_id == 0 else 1
+            use_projection = (stride != 1) or (current_in_channels != self.out_channels)
+
+            print()
+            print(f"# Block {block_id} ({'projection' if use_projection else 'identity'})")
+            print(f"conv1 3x3 s{stride}")
+            print(f"input : (N, {current_in_channels}, {current_height}, {current_width})")
+            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
+            print("conv2 3x3 s1")
+            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
+            if use_projection:
+                print(f"shortcut 1x1 s{stride}")
+                print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
+            print("add + relu")
+            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
+
+            current_in_channels = self.out_channels
+            current_height = block.output_height
+            current_width = block.output_width
+
+    def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
         x = input_tensor
+        current_channels = self.in_channels
+        current_height = self.input_height
+        current_width = self.input_width
+
         for block in self.blocks:
-            x = block(x)
-        return x
+            print(f"    Running Layer {self.layer_id} Block {self.blocks.index(block)} with input shape ({self.batch_size}, {current_channels}, {current_height}, {current_width})")
+            block.input_height = current_height
+            block.input_width = current_width
+            block.in_channels = current_channels
+
+            x, current_channels, current_height, current_width = block(x)
+
+        self.output_channels = current_channels
+        self.output_height = current_height
+        self.output_width = current_width
+
+        return x, current_channels, current_height, current_width

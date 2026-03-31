@@ -7,14 +7,13 @@ import ttnn
 @dataclass
 class BasicBlockWeights:
     conv1_weight: ttnn.Tensor
-    conv1_bias: ttnn.Tensor
+    conv1_bias: ttnn.Tensor | None
 
     conv2_weight: ttnn.Tensor
-    conv2_bias: ttnn.Tensor
+    conv2_bias: ttnn.Tensor | None
 
     shortcut_conv_weight: Optional[ttnn.Tensor] = None
     shortcut_conv_bias: Optional[ttnn.Tensor] = None
-
 
 
 class BasicBlock:
@@ -36,13 +35,10 @@ class BasicBlock:
         dilation: int = 1,
         groups: int = 1,
         dtype=None,
-
         conv1_config=None,
         conv2_config=None,
         shortcut_conv_config=None,
-
         layer_id=None,
-
     ) -> None:
         self.weights = weights
         self.device = device
@@ -63,24 +59,6 @@ class BasicBlock:
         self.conv2_config = conv2_config
         self.shortcut_conv_config = shortcut_conv_config
 
-        self.conv1_output_height = self._conv_out_dim(
-            input_size=self.input_height,
-            kernel_size=self.KERNEL_SIZE[0],
-            stride=self.stride,
-            padding=self.padding,
-            dilation=self.dilation,
-        )
-        self.conv1_output_width = self._conv_out_dim(
-            input_size=self.input_width,
-            kernel_size=self.KERNEL_SIZE[1],
-            stride=self.stride,
-            padding=self.padding,
-            dilation=self.dilation,
-        )
-
-        self.output_height = self.conv1_output_height
-        self.output_width = self.conv1_output_width
-
         self.use_projection = self.weights.shortcut_conv_weight is not None
 
         self.interleaved_l1 = ttnn.MemoryConfig(
@@ -95,35 +73,37 @@ class BasicBlock:
 
         self.layer_id = layer_id
 
-    # calc the output dimension after convolution
-    @staticmethod
-    def _conv_out_dim(
-        *,
-        input_size: int,
-        kernel_size: int,
-        stride: int,
-        padding: int,
-        dilation: int = 1,
-    ) -> int:
-        return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
+        # These get finalized from the actual conv outputs during build-time probing
+        self.output_height = input_height
+        self.output_width = input_width
 
-
-    def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
+    def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
         needs_projection = (self.stride != 1) or (self.in_channels != self.out_channels)
         assert self.use_projection == needs_projection, (
             f"use_projection={self.use_projection}, "
             f"stride={self.stride}, in_channels={self.in_channels}, out_channels={self.out_channels}"
         )
 
+        # print("input_tensor shape:", input_tensor.shape)
+        # print("input_tensor mem cfg:", ttnn.get_memory_config(input_tensor))
+        # print("input_tensor layout:", input_tensor.layout)
+
         if not self.use_projection:
+            # print("     Using identity shortcut")
             identity = input_tensor
+
+            # overhead here
+            identity = ttnn.to_memory_config(identity, self.interleaved_dram)
+            identity = ttnn.to_layout(identity, ttnn.TILE_LAYOUT)
+            
+            
+            identity_h = self.input_height
+            identity_w = self.input_width
         else:
-            # input_tensor: HEIGHT_SHARDED + L1
-            # self.weights.shortcut_conv_weight: INTERLEAVED + DRAM
-            # self.weights.shortcut_conv_bias: INTERLEAVED + DRAM
+            # print("     Using projection shortcut")
             shortcut_input = ttnn.to_memory_config(input_tensor, self.interleaved_dram)
 
-            identity = ttnn.conv2d(
+            identity, (identity_h, identity_w) = ttnn.conv2d(
                 input_tensor=shortcut_input,
                 weight_tensor=self.weights.shortcut_conv_weight,
                 bias_tensor=self.weights.shortcut_conv_bias,
@@ -140,12 +120,12 @@ class BasicBlock:
                 groups=1,
                 dtype=self.dtype,
                 conv_config=self.shortcut_conv_config,
-                return_output_dim=False,
+                return_output_dim=True,
                 return_weights_and_bias=False,
             )
             del shortcut_input
 
-        conv1_out = ttnn.conv2d(
+        conv1_out, (conv1_out_h, conv1_out_w) = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv1_weight,
             bias_tensor=self.weights.conv1_bias,
@@ -162,17 +142,17 @@ class BasicBlock:
             groups=self.groups,
             dtype=self.dtype,
             conv_config=self.conv1_config,
-            return_output_dim=False,
+            return_output_dim=True,
             return_weights_and_bias=False,
         )
-    
+
         if self.layer_id == 4:
             conv2_in = ttnn.to_memory_config(conv1_out, self.interleaved_dram)
             del conv1_out
         else:
-            conv2_in = conv1_out        
+            conv2_in = conv1_out
 
-        out = ttnn.conv2d(
+        out, (out_h, out_w) = ttnn.conv2d(
             input_tensor=conv2_in,
             weight_tensor=self.weights.conv2_weight,
             bias_tensor=self.weights.conv2_bias,
@@ -180,8 +160,8 @@ class BasicBlock:
             in_channels=self.out_channels,
             out_channels=self.out_channels,
             batch_size=self.batch_size,
-            input_height=self.conv1_output_height,
-            input_width=self.conv1_output_width,
+            input_height=conv1_out_h,
+            input_width=conv1_out_w,
             kernel_size=self.KERNEL_SIZE,
             stride=(1, 1),
             padding=(self.padding, self.padding),
@@ -189,16 +169,32 @@ class BasicBlock:
             groups=self.groups,
             dtype=self.dtype,
             conv_config=self.conv2_config,
-            return_output_dim=False,
+            return_output_dim=True,
             return_weights_and_bias=False,
         )
 
         del conv2_in
+
+        assert out_h == identity_h and out_w == identity_w, (
+            f"Residual shape mismatch: out=({out_h}, {out_w}) vs identity=({identity_h}, {identity_w})"
+        )
+
+
+
+        # print("out shape:", out.shape)
+        # print("identity shape:", identity.shape)
+        # print("out mem cfg:", ttnn.get_memory_config(out))
+        # print("identity mem cfg:", ttnn.get_memory_config(identity))
+        # print("out layout:", out.layout)
+        # print("identity layout:", identity.layout)
 
         out = ttnn.add(
             out,
             identity,
             activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
         )
-        
-        return out
+
+        self.output_height = out_h
+        self.output_width = out_w
+
+        return out, self.out_channels, out_h, out_w

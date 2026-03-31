@@ -158,6 +158,23 @@ def get_module_conv_configs(
 
     return out
 
+def print_mem(tag, device):  
+    print(f"\n===== MEMORY @ {tag} =====")  
+    try:  
+        # This generates CSV files, not console output  
+        ttnn.device.dump_device_memory_state(device, prefix=f"layer_{tag}_")  
+        print(f"Memory report generated for {tag}")  
+    except Exception as e:  
+        print(f"Error: {e}")  
+          
+    # For immediate console output, try:  
+    try:  
+        memory_view = ttnn.device.get_memory_view(device, ttnn.BufferType.L1)  
+        print(f"L1 Memory - Total: {memory_view.total_bytes_per_bank}, "  
+              f"Allocated: {memory_view.total_bytes_allocated_per_bank}, "  
+              f"Free: {memory_view.total_bytes_free_per_bank}")  
+    except Exception as e:  
+        print(f"Could not get memory view: {e}")
 
 class ResNet18:
     def __init__(
@@ -177,143 +194,154 @@ class ResNet18:
         self.batch_size = batch_size
         self.dtype = dtype
 
-        # convolution config
         stem_conv_config = get_module_conv_configs(conv2d_config, module="conv0")
         layer1_conv_config = get_module_conv_configs(conv2d_config, module="conv1")
         layer2_conv_config = get_module_conv_configs(conv2d_config, module="conv2")
         layer3_conv_config = get_module_conv_configs(conv2d_config, module="conv3")
         layer4_conv_config = get_module_conv_configs(conv2d_config, module="conv4")
-        # head_conv_config = get_module_conv_configs(conv2d_config, module="head")
-         
-        
+
         self.stem = InputStem(
             weights=weights.stem,
             device=device,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             input_height=input_height,
             input_width=input_width,
             dtype=dtype,
             conv2d_config=stem_conv_config,
         )
 
+        # Build layer1 from stem's known output spec for ImageNet stem:
+        # conv7x7 s2 -> maxpool3x3 s2, so stem returns 64 x 56 x 56 for 224x224 input.
+        current_channels = self.stem.OUT_CHANNELS
         current_height = self.stem.output_height
         current_width = self.stem.output_width
-        current_channels = self.stem.OUT_CHANNELS
-
-        current_channels = 64
 
         self.layer1 = ResNetLayer(
             layer_id=1,
             weights=weights.layer1,
             device=device,
             in_channels=current_channels,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
             conv2d_config=layer1_conv_config,
         )
-
+        current_channels = self.layer1.output_channels
         current_height = self.layer1.output_height
         current_width = self.layer1.output_width
-        current_channels = self.layer1.output_channels
 
         self.layer2 = ResNetLayer(
             layer_id=2,
             weights=weights.layer2,
             device=device,
             in_channels=current_channels,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
             conv2d_config=layer2_conv_config,
         )
-
-        current_height = self.layer2.output_height
-        current_width = self.layer2.output_width
         current_channels = self.layer2.output_channels
+        # current_height = self.layer2.output_height
+        # current_width = self.layer2.output_width
+        current_height = 28
+        current_width = 28
+
+        # print("=====After layer2 build: current_channels =", current_channels, "current_height =", current_height, "current_width =", current_width)
 
         self.layer3 = ResNetLayer(
             layer_id=3,
             weights=weights.layer3,
             device=device,
             in_channels=current_channels,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
             conv2d_config=layer3_conv_config,
         )
-
-        current_height = self.layer3.output_height
-        current_width = self.layer3.output_width
         current_channels = self.layer3.output_channels
+        # current_height = self.layer3.output_height
+        # current_width = self.layer3.output_width
+        current_height = 14
+        current_width = 14
 
         self.layer4 = ResNetLayer(
             layer_id=4,
             weights=weights.layer4,
             device=device,
             in_channels=current_channels,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             input_height=current_height,
             input_width=current_width,
             dtype=dtype,
             conv2d_config=layer4_conv_config,
         )
+        current_channels = self.layer4.output_channels
+        # current_height = self.layer4.output_height
+        # current_width = self.layer4.output_width
+        current_height = 7
+        current_width = 7
 
         self.head = ResNetHead(
             weights=weights.head,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
+            in_features=current_channels,
+            input_height=current_height,
+            input_width=current_width,
             num_classes=num_classes,
-            input_height=self.layer4.output_height,
-            input_width=self.layer4.output_width,
+            dtype=dtype if dtype is not None else ttnn.bfloat16,
             memory_config=head_memory_config,
         )
 
     def forward(self, input_tensor: ttnn.Tensor):
-        # to track the shape and activation per layer for debuging
+        device = input_tensor.device()
+
         acts = {}
         shapes = {}
 
-        acts["input"] = ttnn.to_torch(input_tensor).detach().cpu().float()
-        shapes["input"] = tuple(input_tensor.shape)
-        # breakpoint()
+        print(f"Input shape: (N, C, H, W) = ({self.batch_size}, {input_tensor.shape[1]}, {input_tensor.shape[2]}, {input_tensor.shape[3]})")
+        x, c, h, w = self.stem(input_tensor)
+        print(f"After stem: shape = ({self.batch_size}, {c}, {h}, {w})")
+        acts["stem"] = x
+        shapes["stem"] = (c, h, w)
 
-        # === INPUT STEM
-        x = self.stem(input_tensor)
-        acts["stem"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["stem"] = tuple(x.shape)
-        # breakpoint()
+        x, c, h, w = self.layer1(x)
+        print(f"After layer1: shape = ({self.batch_size}, {c}, {h}, {w})")
+        acts["layer1"] = x
+        shapes["layer1"] = (c, h, w)
+        # print_mem("after layer1", device)
 
-        # === RESIDUAL LAYER
-        x = self.layer1(x)
-        acts["layer1"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["layer1"] = tuple(x.shape)
-        # breakpoint()
+        x, c, h, w = self.layer2(x)
+        print(f"After layer2: shape = ({self.batch_size}, {c}, {h}, {w})")
+        acts["layer2"] = x
+        shapes["layer2"] = (c, h, w)
+        # print_mem("after layer2", device)
 
-        x = self.layer2(x)
-        acts["layer2"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["layer2"] = tuple(x.shape)
-        # breakpoint()
+        x, c, h, w = self.layer3(x)
+        print(f"After layer3: shape = ({self.batch_size}, {c}, {h}, {w})")
+        acts["layer3"] = x
+        shapes["layer3"] = (c, h, w)
+        # print_mem("after layer3", device)
+        # print(f"===== Before layer 4 =====: {x.shape}")
 
-        x = self.layer3(x)
-        acts["layer3"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["layer3"] = tuple(x.shape)
-        # breakpoint()
+        x, c, h, w = self.layer4(x)
+        print(f"After layer4: shape = ({self.batch_size}, {c}, {h}, {w})")
+        acts["layer4"] = x
+        shapes["layer4"] = (c, h, w)
+        # print_mem("after layer4", device)
+        
+        # print(f"===== Before head =====: {x.shape}")
 
-        x = self.layer4(x)
-        acts["layer4"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["layer4"] = tuple(x.shape)
-        # breakpoint()
-
-        # === HEAD CLASSIFICATION
         x = self.head(x)
-        acts["head"] = ttnn.to_torch(x).detach().cpu().float()
-        shapes["head"] = tuple(x.shape)
-        # breakpoint()
+        # acts["avgpool"] = self.head.debug_avgpool
+        # acts["flatten"] = self.head.debug_flatten
+        acts["head"] = x
+        shapes["head"] = self.head.final_dimension
 
         return x, acts, shapes
+
 
 def fold_bn_into_conv(
     conv_w: torch.Tensor,
