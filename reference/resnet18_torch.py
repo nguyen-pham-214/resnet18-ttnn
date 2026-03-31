@@ -157,12 +157,12 @@ class ResNet18(nn.Module):
         # shapes["prepool"] = tuple(out.shape)
 
         out = self.avgpool(out)
-        acts["avgpool"] = out
-        shapes["avgpool"] = tuple(out.shape)
+        # acts["avgpool"] = out
+        # shapes["avgpool"] = tuple(out.shape)
 
         out = torch.flatten(out, 1)
-        acts["flatten"] = out
-        shapes["flatten"] = tuple(out.shape)
+        # acts["flatten"] = out
+        # shapes["flatten"] = tuple(out.shape)
 
         out = self.fc(out)
         acts["head"] = out

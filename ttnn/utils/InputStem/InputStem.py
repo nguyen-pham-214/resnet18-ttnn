@@ -52,6 +52,12 @@ class InputStem:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
     def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
+        # print(f"Input stem memory config: {input_tensor.memory_config()}")
+        # print(f"Input stem weight memory config: {self.weights.conv_weight.memory_config()}")
+        # print(f"Input stem bias memory config: {self.weights.conv_bias.memory_config()}")
+
+        # print("    Memory config of input tensor to stem:", ttnn.get_memory_config(input_tensor))
+        # breakpoint()
         x, (conv_out_h, conv_out_w) = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv_weight,
@@ -73,6 +79,8 @@ class InputStem:
             return_weights_and_bias=False,
         )
 
+        # print("    Memory config of output tensor from stem conv:", ttnn.get_memory_config(x))
+
         x = ttnn.max_pool2d(
             input_tensor=x,
             batch_size=self.batch_size,
@@ -83,6 +91,8 @@ class InputStem:
             stride=list(self.POOL_STRIDE),
             padding=list(self.POOL_PADDING),
             dilation=list(self.POOL_DILATION),
+
+            # memory_config=ttnn.DRAM_MEMORY_CONFIsG,
         )
 
         pool_out_h = self._out_dim(
@@ -100,6 +110,9 @@ class InputStem:
             self.POOL_DILATION[1],
         )
 
+        # print("    Memory config of output tensor from stem:", ttnn.get_memory_config(x))
+
         return x, self.OUT_CHANNELS, pool_out_h, pool_out_w
 
 
+        

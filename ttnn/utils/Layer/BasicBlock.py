@@ -73,9 +73,17 @@ class BasicBlock:
 
         self.layer_id = layer_id
 
-        # These get finalized from the actual conv outputs during build-time probing
-        self.output_height = input_height
-        self.output_width = input_width
+        # # These get finalized from the actual conv outputs during build-time probing
+        # self.output_height = input_height
+        # self.output_width = input_width
+        conv1_h = self._conv_out_dim(self.input_height, 3, self.stride, self.padding, self.dilation)
+        conv1_w = self._conv_out_dim(self.input_width, 3, self.stride, self.padding, self.dilation)
+
+        # conv2 is stride 1, padding 1, so spatial size stays the same
+        self.output_height = conv1_h
+        self.output_width = conv1_w
+    def _conv_out_dim(self, in_dim: int, kernel: int, stride: int, padding: int, dilation: int = 1) -> int:
+        return ((in_dim + 2 * padding - dilation * (kernel - 1) - 1) // stride) + 1
 
     def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
         needs_projection = (self.stride != 1) or (self.in_channels != self.out_channels)

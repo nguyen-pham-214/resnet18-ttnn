@@ -151,12 +151,14 @@ class ResNetLayer:
         current_width = self.input_width
 
         for block in self.blocks:
-            print(f"    Running Layer {self.layer_id} Block {self.blocks.index(block)} with input shape ({self.batch_size}, {current_channels}, {current_height}, {current_width})")
+            # print(f"    \nRunning Layer {self.layer_id} Block {self.blocks.index(block)} with input shape ({self.batch_size}, {current_channels}, {current_height}, {current_width})")
+            # print(f"    Memory config of input tensor to block: {ttnn.get_memory_config(x)}")
             block.input_height = current_height
             block.input_width = current_width
             block.in_channels = current_channels
 
             x, current_channels, current_height, current_width = block(x)
+            # print("    Memory config of output tensor from block:", ttnn.get_memory_config(x))
 
         self.output_channels = current_channels
         self.output_height = current_height

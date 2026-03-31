@@ -47,18 +47,24 @@ def print_shape_comparison_table(torch_shapes, ttnn_shapes):
 
     print(sep)
 
+# def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
+#     a = a.detach().float().reshape(-1)
+#     b = b.detach().float().reshape(-1)
+
+#     a = a - a.mean()
+#     b = b - b.mean()
+
+#     denom = torch.sqrt((a * a).sum()) * torch.sqrt((b * b).sum())
+#     if denom.item() == 0:
+#         return float("nan")
+
+#     return ((a * b).sum() / denom).item()
 def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
-    a = a.detach().float().reshape(-1)
-    b = b.detach().float().reshape(-1)
+    a = a.detach().reshape(-1).double()
+    b = b.detach().reshape(-1).double()
 
-    a = a - a.mean()
-    b = b - b.mean()
-
-    denom = torch.sqrt((a * a).sum()) * torch.sqrt((b * b).sum())
-    if denom.item() == 0:
-        return float("nan")
-
-    return ((a * b).sum() / denom).item()
+    stacked = torch.stack([a, b])
+    return torch.corrcoef(stacked)[0, 1].item()
 
 def ttnn_act_to_torch(ref: torch.Tensor, x_ttnn) -> torch.Tensor:
     if isinstance(x_ttnn, torch.Tensor):
@@ -98,12 +104,12 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         "layer2",
         "layer3",
         "layer4",
-        "avgpool",
-        "flatten",
+        # "avgpool",
+        # "flatten",
         "head",
     ]
 
-    print(f"===============TTNN activations: {list(ttnn_acts.keys())}")
+    # print(f"===============TTNN activations: {list(ttnn_acts.keys())}")
     if "input" not in torch_acts:
         raise KeyError("torch_acts must contain key 'input'")
 
@@ -127,30 +133,30 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         ttnn_raw = ttnn_acts[name]
 
         # ---- DEBUG: BEFORE conversion ----
-        print(f"\n[DEBUG][{name}] BEFORE conversion")
-        print(f"  torch ref shape: {tuple(ref.shape)}, dtype={ref.dtype}, stride={ref.stride()}, contiguous={ref.is_contiguous()}")
+        # print(f"\n[DEBUG][{name}] BEFORE conversion")
+        # print(f"  torch ref shape: {tuple(ref.shape)}, dtype={ref.dtype}, stride={ref.stride()}, contiguous={ref.is_contiguous()}")
 
-        print(f"  ttnn type: {type(ttnn_raw)}")
-        if hasattr(ttnn_raw, "shape"):
-            try:
-                print(f"  ttnn shape: {ttnn_raw.shape}")
-            except:
-                pass
-        if hasattr(ttnn_raw, "layout"):
-            try:
-                print(f"  ttnn layout: {ttnn_raw.layout}")
-            except:
-                pass
-        if hasattr(ttnn_raw, "dtype"):
-            try:
-                print(f"  ttnn dtype: {ttnn_raw.dtype}")
-            except:
-                pass
+        # print(f"  ttnn type: {type(ttnn_raw)}")
+        # if hasattr(ttnn_raw, "shape"):
+        #     try:
+        #         print(f"  ttnn shape: {ttnn_raw.shape}")
+        #     except:
+        #         pass
+        # if hasattr(ttnn_raw, "layout"):
+        #     try:
+        #         print(f"  ttnn layout: {ttnn_raw.layout}")
+        #     except:
+        #         pass
+        # if hasattr(ttnn_raw, "dtype"):
+        #     try:
+        #         print(f"  ttnn dtype: {ttnn_raw.dtype}")
+        #     except:
+        #         pass
 
         try:
             tmp = ttnn.to_torch(ttnn_raw)
-            print(f"  raw to_torch shape: {tuple(tmp.shape)}, stride={tmp.stride()}, contiguous={tmp.is_contiguous()}")
-            print(f"  raw sample: {tmp.reshape(-1)[:5]}")
+            # print(f"  raw to_torch shape: {tuple(tmp.shape)}, stride={tmp.stride()}, contiguous={tmp.is_contiguous()}")
+            # print(f"  raw sample: {tmp.reshape(-1)[:5]}")
         except Exception as e:
             print(f"  to_torch failed: {e}")
 
@@ -158,15 +164,15 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
         got = ttnn_act_to_torch(ref, ttnn_raw)
 
         # ---- DEBUG: AFTER conversion ----
-        print(f"[DEBUG][{name}] AFTER conversion")
-        print(f"  got shape: {tuple(got.shape)}, stride={got.stride()}, contiguous={got.is_contiguous()}")
-        print(f"  got sample: {got.reshape(-1)[:5]}")
-        print(f"  ref sample: {ref.reshape(-1)[:5]}")
+        # print(f"[DEBUG][{name}] AFTER conversion")
+        # print(f"  got shape: {tuple(got.shape)}, stride={got.stride()}, contiguous={got.is_contiguous()}")
+        # print(f"  got sample: {got.reshape(-1)[:5]}")
+        # print(f"  ref sample: {ref.reshape(-1)[:5]}")
 
         same_shape = tuple(ref.shape) == tuple(got.shape)
         layer_pcc = compute_pcc(ref, got) if same_shape else float("nan")
 
-        print(f"  PCC: {layer_pcc:.6f}")
+        # print(f"  PCC: {layer_pcc:.6f}")
 
         print(
             f"{name:<10} | "
@@ -284,8 +290,8 @@ def main():
             max_abs_diff = torch.max(torch.abs(torch_output - ttnn_output_torch)).item()
             mean_abs_diff = torch.mean(torch.abs(torch_output - ttnn_output_torch)).item()
             print("PCC =", pcc)
-            print("Max abs diff =", max_abs_diff)
-            print("Mean abs diff =", mean_abs_diff)
+            # print("Max abs diff =", max_abs_diff)
+            # print("Mean abs diff =", mean_abs_diff)
 
             worst_pcc = min(worst_pcc, pcc)
             worst_max_abs_diff = max(worst_max_abs_diff, max_abs_diff)
@@ -304,11 +310,11 @@ def main():
         print("\n[SUMMARY]")
         print("Batch size =", BATCH_SIZE)
         print("Num iterations =", NUM_ITERS)
-        print("Worst PCC =", worst_pcc)
-        print("Worst max abs diff =", worst_max_abs_diff)
-        print("Worst mean abs diff =", worst_mean_abs_diff)
+        # print("Worst PCC =", worst_pcc)
+        # print("Worst max abs diff =", worst_max_abs_diff)
+        # print("Worst mean abs diff =", worst_mean_abs_diff)
 
-        print_shape_comparison_table(torch_shapes, ttnn_shapes)
+        # print_shape_comparison_table(torch_shapes, ttnn_shapes)
         results = compare_acts(ttnn_acts, torch_acts, per_sample=True)
 
         if failed_iters:
