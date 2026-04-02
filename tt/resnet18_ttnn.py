@@ -9,7 +9,6 @@ from utils.Layer.ResNetLayer import ResNetLayer
 from utils.Head.Head import ResNetHead, HeadWeights
 from configs import conv2d_config
 
-
 @dataclass
 class ResNet18Weights:
     stem: InputStemWeights
@@ -18,7 +17,6 @@ class ResNet18Weights:
     layer3: dict[str, ttnn.Tensor]
     layer4: dict[str, ttnn.Tensor]
     head: HeadWeights
-
 
 def _to_row_major_host(tensor: torch.Tensor, *, dtype):
     return ttnn.from_torch(
@@ -158,87 +156,6 @@ def get_module_conv_configs(
 
     return out
 
-def print_mem(tag, device):  
-    print(f"\n===== MEMORY @ {tag} =====")  
-    try:  
-        # This generates CSV files, not console output  
-        ttnn.device.dump_device_memory_state(device, prefix=f"layer_{tag}_")  
-        print(f"Memory report generated for {tag}")  
-    except Exception as e:  
-        print(f"Error: {e}")  
-          
-    # For immediate console output, try:  
-    try:  
-        memory_view = ttnn.device.get_memory_view(device, ttnn.BufferType.L1)  
-        print(f"L1 Memory - Total: {memory_view.total_bytes_per_bank}, "  
-              f"Allocated: {memory_view.total_bytes_allocated_per_bank}, "  
-              f"Free: {memory_view.total_bytes_free_per_bank}")  
-    except Exception as e:  
-        print(f"Could not get memory view: {e}")
-
-
-def test_conv_layout(device):
-    import ttnn
-    import torch
-
-    # ----------------------------
-    # Create random input + weight
-    # ----------------------------
-    N, H, W, C = 1, 32, 32, 3
-    OC = 8
-
-    torch_input = torch.randn((N, H, W, C), dtype=torch.float32)
-    torch_weight = torch.randn((OC, C, 3, 3), dtype=torch.float32)
-
-    input_tensor = ttnn.from_torch(torch_input, device=device, dtype=ttnn.bfloat16)
-    weight_tensor = ttnn.from_torch(torch_weight, device=device, dtype=ttnn.bfloat16)
-
-    def run_conv(x, label):
-        try:
-            ttnn.conv2d(
-                input_tensor=x,
-                weight_tensor=weight_tensor,
-                device=device,
-                in_channels=C,
-                out_channels=OC,
-                batch_size=N,
-                input_height=H,
-                input_width=W,
-                kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
-                dilation=(1, 1),
-                groups=1,
-                dtype=ttnn.bfloat16,
-                return_output_dim=False,
-            )
-            print(f"[PASS] {label}")
-        except Exception as e:
-            print(f"[FAIL] {label}")
-            print("   ", e)
-
-    # ----------------------------
-    # INTERLEAVED
-    # ----------------------------
-    interleaved_mem = ttnn.MemoryConfig(
-        memory_layout=ttnn.TensorMemoryLayout.INTERLEAVED,
-        buffer_type=ttnn.BufferType.DRAM,
-    )
-    x_interleaved = ttnn.to_memory_config(input_tensor, interleaved_mem)
-
-    run_conv(x_interleaved, "INTERLEAVED")
-
-    # ----------------------------
-    # HEIGHT SHARDED
-    # ----------------------------
-    sharded_mem = ttnn.MemoryConfig(
-        memory_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-        buffer_type=ttnn.BufferType.L1,
-    )
-    x_sharded = ttnn.to_memory_config(input_tensor, sharded_mem)
-
-    run_conv(x_sharded, "HEIGHT_SHARDED")
-
 class ResNet18:
     def __init__(
         self,
@@ -272,9 +189,6 @@ class ResNet18:
             dtype=dtype,
             conv2d_config=stem_conv_config,
         )
-
-        # Build layer1 from stem's known output spec for ImageNet stem:
-        # conv7x7 s2 -> maxpool3x3 s2, so stem returns 64 x 56 x 56 for 224x224 input.
         current_channels = self.stem.OUT_CHANNELS
         current_height = self.stem.output_height
         current_width = self.stem.output_width
@@ -308,10 +222,6 @@ class ResNet18:
         current_channels = self.layer2.output_channels
         current_height = self.layer2.output_height
         current_width = self.layer2.output_width
-        # current_height = 28
-        # current_width = 28
-
-        # print("=====After layer2 build: current_channels =", current_channels, "current_height =", current_height, "current_width =", current_width)
 
         self.layer3 = ResNetLayer(
             layer_id=3,
@@ -327,8 +237,6 @@ class ResNet18:
         current_channels = self.layer3.output_channels
         current_height = self.layer3.output_height
         current_width = self.layer3.output_width
-        # current_height = 14
-        # current_width = 14
 
         self.layer4 = ResNetLayer(
             layer_id=4,
@@ -344,8 +252,6 @@ class ResNet18:
         current_channels = self.layer4.output_channels
         current_height = self.layer4.output_height
         current_width = self.layer4.output_width
-        # current_height = 7
-        # current_width = 7
 
         self.head = ResNetHead(
             weights=weights.head,
@@ -360,67 +266,30 @@ class ResNet18:
 
 
     def forward(self, input_tensor: ttnn.Tensor):
-        device = input_tensor.device()
-        # test_conv_layout(device)
-        
-
         acts = {}
         shapes = {}
 
-        print(f"Input shape: (N, C, H, W) = ({self.batch_size}, {input_tensor.shape[1]}, {input_tensor.shape[2]}, {input_tensor.shape[3]})")
-        
-        print("\nStarting stem")
-        # breakpoint()
-        # x, c, h, w = self.stem(input_tensor)
         x = self.stem(input_tensor)
-        # print(f"After stem: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["stem"] = x
-        # shapes["stem"] = (c, h, w)
 
-        print("\n\nStarting layer1")
-        # breakpoint()
         x, c, h, w = self.layer1(x)
-        print(f"After layer1: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["layer1"] = x
         shapes["layer1"] = (c, h, w)
-        # print_mem("after layer1", device)
 
-        print("\n\nStarting layer2")
-        # breakpoint()
         x, c, h, w = self.layer2(x)
-        print(f"After layer2: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["layer2"] = x
         shapes["layer2"] = (c, h, w)
-        # print_mem("after layer2", device)
 
-        print("\n\nStarting layer3")
-        # breakpoint()
         x, c, h, w = self.layer3(x)
-        print(f"After layer3: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["layer3"] = x
         shapes["layer3"] = (c, h, w)
-        # print_mem("after layer3", device)
-        # print(f"===== Before layer 4 =====: {x.shape}")
 
-        print("\n\nStarting layer4")
-        # breakpoint()
         x, c, h, w = self.layer4(x)
-        print(f"After layer4: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["layer4"] = x
         shapes["layer4"] = (c, h, w)
-        # print_mem("after layer4", device)
-        
-        # print(f"===== Before head =====: {x.shape}")
-
-        print("\n\nStarting head")
-        # breakpoint()
+    
         x = self.head(x)
-        # c, h, w = self.head.final_dimension
-        # print(f"After head: shape = ({self.batch_size}, {c}, {h}, {w})")
-        # acts["avgpool"] = self.head.debug_avgpool
-        # acts["flatten"] = self.head.debug_flatten
         acts["head"] = x
-        # shapes["head"] = (c, h, w)
 
         return x, acts, shapes
 
@@ -434,8 +303,6 @@ def fold_bn_into_conv(
     eps: float,
     conv_bias: torch.Tensor | None = None,
 ):
-    # conv_w: [out_channels, in_channels, kH, kW]
-    # conv_bias: [out_channels] or None
     if conv_bias is None:
         conv_bias = torch.zeros(
             conv_w.shape[0],

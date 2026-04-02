@@ -47,18 +47,6 @@ def print_shape_comparison_table(torch_shapes, ttnn_shapes):
 
     print(sep)
 
-# def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
-#     a = a.detach().float().reshape(-1)
-#     b = b.detach().float().reshape(-1)
-
-#     a = a - a.mean()
-#     b = b - b.mean()
-
-#     denom = torch.sqrt((a * a).sum()) * torch.sqrt((b * b).sum())
-#     if denom.item() == 0:
-#         return float("nan")
-
-#     return ((a * b).sum() / denom).item()
 def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
     a = a.detach().reshape(-1).double()
     b = b.detach().reshape(-1).double()
@@ -185,162 +173,6 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
     return results
 
 
-
-# def test_conv_with_different_shardings(device):  
-#     """Test conv operation with block/width input sharding and height output sharding."""  
-      
-#     # Tensor parameters  
-#     batch_size = 1  
-#     input_channels = 32  
-#     output_channels = 64  
-#     input_height = 32  
-#     input_width = 32  
-#     kernel_size = (3, 3)  
-      
-#     # Create input shape in NHWC format  
-#     input_shape = (batch_size, input_height, input_width, input_channels)  
-#     weight_shape = (output_channels, input_channels, kernel_size[0], kernel_size[1])  
-      
-#     # Create random tensors  
-#     torch_input = torch.randn(input_shape, dtype=torch.bfloat16)  
-#     torch_weight = torch.randn(weight_shape, dtype=torch.bfloat16)  
-      
-#     # Get device grid for sharding  
-#     grid_size = device.compute_with_storage_grid_size()  
-      
-#     # Create block-sharded memory config  
-#     block_sharded_config = ttnn.create_sharded_memory_config(  
-#         shape=[input_height * input_width, input_channels],  
-#         core_grid=ttnn.CoreGrid(x=2, y=2),  
-#         strategy=ttnn.ShardStrategy.BLOCK,  
-#         orientation=ttnn.ShardOrientation.ROW_MAJOR,  
-#         use_height_and_width_as_shard_shape=True,  
-#     )  
-      
-#     # Create width-sharded memory config    
-#     width_sharded_config = ttnn.create_sharded_memory_config(  
-#         shape=[input_height * input_width, input_channels],  
-#         core_grid=ttnn.CoreGrid(x=4, y=1),  
-#         strategy=ttnn.ShardStrategy.WIDTH,  
-#         orientation=ttnn.ShardOrientation.ROW_MAJOR,  
-#         use_height_and_width_as_shard_shape=True,  
-#     )  
-      
-#     # Test with block-sharded input  
-#     print("=== Testing Block-Sharded Input ===")  
-#     block_input_tensor = ttnn.from_torch(  
-#         torch_input,  
-#         dtype=ttnn.bfloat16,  
-#         layout=ttnn.TILE_LAYOUT,  
-#         device=device,  
-#         memory_config=block_sharded_config,  
-#     )  
-      
-#     # Prepare weights  
-#     weight_tensor = ttnn.from_torch(torch_weight, dtype=ttnn.bfloat16)  
-#     weight_tensor = ttnn.prepare_conv_weights(  
-#         weight_tensor=weight_tensor,  
-#         weights_format="OIHW",  
-#         input_memory_config=block_sharded_config,  
-#         input_layout=ttnn.TILE_LAYOUT,  
-#         has_bias=False,  
-#         in_channels=input_channels,  
-#         out_channels=output_channels,  
-#         kernel_size=kernel_size,  
-#         stride=(1, 1),  
-#         padding=(1, 1),  
-#         dilation=(1, 1),  
-#         batch_size=batch_size,  
-#         input_height=input_height,  
-#         input_width=input_width,  
-#         groups=1,  
-#         device=device,  
-#         input_dtype=ttnn.bfloat16,  
-#     )  
-      
-#     # Configure conv with height sharding  
-#     conv_config = ttnn.Conv2dConfig(  
-#         weights_dtype=ttnn.bfloat16,  
-#         shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,  
-#         deallocate_activation=False,  
-#     )  
-      
-#     # Run convolution  
-#     block_output = ttnn.conv2d(  
-#         input_tensor=block_input_tensor,  
-#         weight_tensor=weight_tensor,  
-#         bias_tensor=None,  
-#         in_channels=input_channels,  
-#         out_channels=output_channels,  
-#         device=device,  
-#         kernel_size=kernel_size,  
-#         stride=(1, 1),  
-#         padding=(1, 1),  
-#         dilation=(1, 1),  
-#         batch_size=batch_size,  
-#         input_height=input_height,  
-#         input_width=input_width,  
-#         conv_config=conv_config,  
-#         dtype=ttnn.bfloat16,  
-#     )  
-      
-#     print(f"Block-sharded input -> Height-sharded conv output memory config: {ttnn.get_memory_config(block_output)}")  
-      
-#     # Test with width-sharded input  
-#     print("\n=== Testing Width-Sharded Input ===")  
-#     width_input_tensor = ttnn.from_torch(  
-#         torch_input,  
-#         dtype=ttnn.bfloat16,  
-#         layout=ttnn.TILE_LAYOUT,  
-#         device=device,  
-#         memory_config=width_sharded_config,  
-#     )  
-      
-#     # Prepare weights for width sharding  
-#     weight_tensor_ws = ttnn.from_torch(torch_weight, dtype=ttnn.bfloat16)  
-#     weight_tensor_ws = ttnn.prepare_conv_weights(  
-#         weight_tensor=weight_tensor_ws,  
-#         weights_format="OIHW",  
-#         input_memory_config=width_sharded_config,  
-#         input_layout=ttnn.TILE_LAYOUT,  
-#         has_bias=False,  
-#         in_channels=input_channels,  
-#         out_channels=output_channels,  
-#         kernel_size=kernel_size,  
-#         stride=(1, 1),  
-#         padding=(1, 1),  
-#         dilation=(1, 1),  
-#         batch_size=batch_size,  
-#         input_height=input_height,  
-#         input_width=input_width,  
-#         groups=1,  
-#         device=device,  
-#         input_dtype=ttnn.bfloat16,  
-#     )  
-      
-#     # Run convolution  
-#     width_output = ttnn.conv2d(  
-#         input_tensor=width_input_tensor,  
-#         weight_tensor=weight_tensor_ws,  
-#         bias_tensor=None,  
-#         in_channels=input_channels,  
-#         out_channels=output_channels,  
-#         device=device,  
-#         kernel_size=kernel_size,  
-#         stride=(1, 1),  
-#         padding=(1, 1),  
-#         dilation=(1, 1),  
-#         batch_size=batch_size,  
-#         input_height=input_height,  
-#         input_width=input_width,  
-#         conv_config=conv_config,  
-#         dtype=ttnn.bfloat16,  
-#     )  
-      
-#     print(f"Width-sharded input -> Height-sharded conv output memory config: {ttnn.get_memory_config(width_output)}")  
-      
-#     return block_output, width_output
-
 def main():
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
 
@@ -352,18 +184,13 @@ def main():
     PCC_THRESHOLD = 0.99
     NUM_CLASSES=1000
 
-    # -------------------------
     # Create torch reference model
-    # -------------------------
     torch_device = "cpu"
     torch_model = create_torch_model(torch_device)
     torch_model.eval()
 
-    # -------------------------
     # Create TTNN model
-    # -------------------------
     ttnn_device = ttnn.open_device(device_id=0, l1_small_size=8192)
-    
 
     try:
         ttnn_model = load_resnet18_from_torch_checkpoint(
@@ -393,20 +220,6 @@ def main():
             with torch.no_grad():
                 torch_output, torch_acts, torch_shapes = torch_model(torch_input_nchw)
 
-
-            # # TTNN forward
-            # # Get device grid size  
-            # compute_with_storage_grid_size = ttnn_device.compute_with_storage_grid_size()  
-            # device_grid_size = ttnn.CoreGrid(y=compute_with_storage_grid_size.y, x=compute_with_storage_grid_size.x)  
-            
-            # # Use a more conservative sharding approach  
-            # shard_config = ttnn.create_sharded_memory_config(  
-            #     shape=(BATCH_SIZE, 224, 224, 3),  
-            #     core_grid=device_grid_size,  # Use actual device grid  
-            #     strategy=ttnn.ShardStrategy.HEIGHT,  
-            #     orientation=ttnn.ShardOrientation.ROW_MAJOR,  
-            #     use_height_and_width_as_shard_shape=True,  
-            # )
             shard_config = ttnn.create_sharded_memory_config(  
                 # shape=(BATCH_SIZE, 224, 224, 3),
                 shape=(6272, 3),
@@ -428,25 +241,19 @@ def main():
             ttnn_output, ttnn_acts, ttnn_shapes = ttnn_model.forward(ttnn_input)
             end = time.time()
             print(f"==========Time: {end - start:.4f} seconds==========")
-            # ttnn.synchronize_device(ttnn_device)
 
             ttnn_output_torch = ttnn.to_torch(ttnn_output).float()
-
             # Normalize shapes
             torch_output = torch_output.reshape(BATCH_SIZE, -1).float()
             ttnn_output_torch = ttnn_output_torch.reshape(BATCH_SIZE, -1).float()
 
             print("torch output shape:", tuple(torch_output.shape))
             print("ttnn output shape:", tuple(ttnn_output_torch.shape))
-            # print("torch output:", tuple(torch_output))
-            # print("ttnn output:", tuple(ttnn_output_torch))
 
             pcc = compute_pcc(torch_output, ttnn_output_torch)
             max_abs_diff = torch.max(torch.abs(torch_output - ttnn_output_torch)).item()
             mean_abs_diff = torch.mean(torch.abs(torch_output - ttnn_output_torch)).item()
             print("PCC =", pcc)
-            # print("Max abs diff =", max_abs_diff)
-            # print("Mean abs diff =", mean_abs_diff)
 
             worst_pcc = min(worst_pcc, pcc)
             worst_max_abs_diff = max(worst_max_abs_diff, max_abs_diff)
@@ -465,12 +272,8 @@ def main():
         print("\n[SUMMARY]")
         print("Batch size =", BATCH_SIZE)
         print("Num iterations =", NUM_ITERS)
-        # print("Worst PCC =", worst_pcc)
-        # print("Worst max abs diff =", worst_max_abs_diff)
-        # print("Worst mean abs diff =", worst_mean_abs_diff)
 
-        # print_shape_comparison_table(torch_shapes, ttnn_shapes)
-        results = compare_acts(ttnn_acts, torch_acts, per_sample=True)
+        _ = compare_acts(ttnn_acts, torch_acts, per_sample=True)
 
         if failed_iters:
             print("\n[FAILED ITERS]")
@@ -481,8 +284,6 @@ def main():
             )
 
         print("\n[PASS] Stress PCC test PASSED")
-
-
 
     finally:
         ttnn.close_device(ttnn_device)

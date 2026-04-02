@@ -115,35 +115,6 @@ class ResNetLayer:
         self.output_height = current_height
         self.output_width = current_width
 
-    def summary(self) -> None:
-        print(f"# Layer {self.layer_id}")
-        print(f"input: (N, {self.in_channels}, {self.input_height}, {self.input_width})")
-
-        current_in_channels = self.in_channels
-        current_height = self.input_height
-        current_width = self.input_width
-
-        for block_id, block in enumerate(self.blocks):
-            stride = self.first_stride if block_id == 0 else 1
-            use_projection = (stride != 1) or (current_in_channels != self.out_channels)
-
-            print()
-            print(f"# Block {block_id} ({'projection' if use_projection else 'identity'})")
-            print(f"conv1 3x3 s{stride}")
-            print(f"input : (N, {current_in_channels}, {current_height}, {current_width})")
-            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
-            print("conv2 3x3 s1")
-            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
-            if use_projection:
-                print(f"shortcut 1x1 s{stride}")
-                print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
-            print("add + relu")
-            print(f"output: (N, {self.out_channels}, {block.output_height}, {block.output_width})")
-
-            current_in_channels = self.out_channels
-            current_height = block.output_height
-            current_width = block.output_width
-
     def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
         x = input_tensor
         current_channels = self.in_channels
@@ -151,14 +122,9 @@ class ResNetLayer:
         current_width = self.input_width
 
         for block in self.blocks:
-            # print(f"    \nRunning Layer {self.layer_id} Block {self.blocks.index(block)} with input shape ({self.batch_size}, {current_channels}, {current_height}, {current_width})")
-            # print(f"    Memory config of input tensor to block: {ttnn.get_memory_config(x)}")
-            block.input_height = current_height
             block.input_width = current_width
             block.in_channels = current_channels
-
             x, current_channels, current_height, current_width = block(x)
-            # print("    Memory config of output tensor from block:", ttnn.get_memory_config(x))
 
         self.output_channels = current_channels
         self.output_height = current_height

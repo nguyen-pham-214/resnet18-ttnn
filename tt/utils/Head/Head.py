@@ -35,7 +35,6 @@ class ResNetHead:
     def __call__(self, input_tensor: ttnn.Tensor) -> ttnn.Tensor:
         x = input_tensor
 
-        # Expect [1, 1, B*H*W, C]
         x = ttnn.adaptive_avg_pool2d(
             x,
             batch_size=self.batch_size,
@@ -43,7 +42,6 @@ class ResNetHead:
             input_w=self.input_width,
             channels=self.in_features,
             output_size=[1, 1],
-            # memory_config=self.memory_config,
         )
 
         # pooled output -> feed FC
@@ -54,24 +52,6 @@ class ResNetHead:
         # now tilize
         x = ttnn.to_layout(x, ttnn.TILE_LAYOUT)
 
-        # print(f"x layout: {x.layout}")
-        # print(f"self.weights.fc_weight layout: {self.weights.fc_weight.layout}")
-        # print(f"self.weights.fc_bias layout: {self.weights.fc_bias.layout}")
         x = ttnn.linear(x, self.weights.fc_weight, bias=self.weights.fc_bias)
 
-        # out_shape = [int(d) for d in x.shape]
-        # if len(out_shape) == 4:
-        #     _, h, w, c = out_shape
-        # elif len(out_shape) == 3:
-        #     h, w, c = out_shape
-        # elif len(out_shape) == 2:
-        #     _, c = out_shape
-        #     h, w = 1, 1
-        # elif len(out_shape) == 1:
-        #     c = out_shape[0]
-        #     h, w = 1, 1
-        # else:
-        #     raise RuntimeError(f"Unsupported final output rank: shape={x.shape}")
-
-        # self.final_dimension = (c, h, w)
         return x

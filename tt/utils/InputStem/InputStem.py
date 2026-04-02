@@ -52,13 +52,7 @@ class InputStem:
         return ((input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride) + 1
 
     def __call__(self, input_tensor: ttnn.Tensor) -> tuple[ttnn.Tensor, int, int, int]:
-        # print(f"Input stem memory config: {input_tensor.memory_config()}")
-        # print(f"Input stem weight memory config: {self.weights.conv_weight.memory_config()}")
-        # print(f"Input stem bias memory config: {self.weights.conv_bias.memory_config()}")
 
-        # print(f"\n    Input stem conv2d config: {self.conv2d_config}")
-        # print("    Memory config of input tensor to stem:", ttnn.get_memory_config(input_tensor))
-        # breakpoint()
         x, (conv_out_h, conv_out_w) = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv_weight,
@@ -80,8 +74,6 @@ class InputStem:
             return_weights_and_bias=False,
         )
 
-        # print("    Memory config of output tensor from stem conv:", ttnn.get_memory_config(x))
-
         x = ttnn.max_pool2d(
             input_tensor=x,
             batch_size=self.batch_size,
@@ -93,31 +85,11 @@ class InputStem:
             padding=list(self.POOL_PADDING),
             dilation=list(self.POOL_DILATION),
 
-            # applied_shard_scheme=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,  # matches conv output shard scheme
-            output_layout=ttnn.TILE_LAYOUT,  # for better data reuse in blocks, since both conv and pool output are used in block 0
+            output_layout=ttnn.TILE_LAYOUT, 
             reallocate_halo_output=True,
             deallocate_input=True,    
-
         )
 
-        # pool_out_h = self._out_dim(
-        #     conv_out_h,
-        #     self.POOL_KERNEL[0],
-        #     self.POOL_STRIDE[0],
-        #     self.POOL_PADDING[0],
-        #     self.POOL_DILATION[0],
-        # )
-        # pool_out_w = self._out_dim(
-        #     conv_out_w,
-        #     self.POOL_KERNEL[1],
-        #     self.POOL_STRIDE[1],
-        #     self.POOL_PADDING[1],
-        #     self.POOL_DILATION[1],
-        # )
-
-        # print("    Memory config of output tensor from stem:", ttnn.get_memory_config(x))
-
-        # return x, self.OUT_CHANNELS, pool_out_h, pool_out_w
         return x
 
 
