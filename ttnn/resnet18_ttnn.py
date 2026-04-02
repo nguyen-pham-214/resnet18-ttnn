@@ -371,10 +371,11 @@ class ResNet18:
         
         print("\nStarting stem")
         # breakpoint()
-        x, c, h, w = self.stem(input_tensor)
-        print(f"After stem: shape = ({self.batch_size}, {c}, {h}, {w})")
+        # x, c, h, w = self.stem(input_tensor)
+        x = self.stem(input_tensor)
+        # print(f"After stem: shape = ({self.batch_size}, {c}, {h}, {w})")
         acts["stem"] = x
-        shapes["stem"] = (c, h, w)
+        # shapes["stem"] = (c, h, w)
 
         print("\n\nStarting layer1")
         # breakpoint()
@@ -414,12 +415,12 @@ class ResNet18:
         print("\n\nStarting head")
         # breakpoint()
         x = self.head(x)
-        c, h, w = self.head.final_dimension
-        print(f"After head: shape = ({self.batch_size}, {c}, {h}, {w})")
+        # c, h, w = self.head.final_dimension
+        # print(f"After head: shape = ({self.batch_size}, {c}, {h}, {w})")
         # acts["avgpool"] = self.head.debug_avgpool
         # acts["flatten"] = self.head.debug_flatten
         acts["head"] = x
-        shapes["head"] = (c, h, w)
+        # shapes["head"] = (c, h, w)
 
         return x, acts, shapes
 

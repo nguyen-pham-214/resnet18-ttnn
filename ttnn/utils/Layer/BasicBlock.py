@@ -92,27 +92,13 @@ class BasicBlock:
             f"stride={self.stride}, in_channels={self.in_channels}, out_channels={self.out_channels}"
         )
 
-        # print("input_tensor shape:", input_tensor.shape)
-        # print("input_tensor mem cfg:", ttnn.get_memory_config(input_tensor))
-        # print("input_tensor layout:", input_tensor.layout)
-
         if not self.use_projection:
-            # print("     Using identity shortcut")
             identity = input_tensor
-
-            # overhead here
-            identity = ttnn.to_memory_config(identity, self.interleaved_dram)
-            identity = ttnn.to_layout(identity, ttnn.TILE_LAYOUT)
-            
-            
             identity_h = self.input_height
             identity_w = self.input_width
         else:
-            # print("     Using projection shortcut")
-            shortcut_input = ttnn.to_memory_config(input_tensor, self.interleaved_dram)
-
             identity, (identity_h, identity_w) = ttnn.conv2d(
-                input_tensor=shortcut_input,
+                input_tensor=input_tensor,
                 weight_tensor=self.weights.shortcut_conv_weight,
                 bias_tensor=self.weights.shortcut_conv_bias,
                 device=self.device,
@@ -131,8 +117,12 @@ class BasicBlock:
                 return_output_dim=True,
                 return_weights_and_bias=False,
             )
-            del shortcut_input
 
+        # if self.layer_id == 4:
+        #     print(f"\n    Conv 1 config in layer 4: {self.conv1_config}")
+        #     print(f"    Conv 2 config in layer 4: {self.conv2_config}")
+
+        # print(f"\n    Conv1 input memory config: {ttnn.get_memory_config(input_tensor)}")
         conv1_out, (conv1_out_h, conv1_out_w) = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights.conv1_weight,
@@ -154,11 +144,21 @@ class BasicBlock:
             return_weights_and_bias=False,
         )
 
-        if self.layer_id == 4:
-            conv2_in = ttnn.to_memory_config(conv1_out, self.interleaved_dram)
-            del conv1_out
-        else:
-            conv2_in = conv1_out
+        # if self.layer_id == 4:
+        #     # print(f"\n    Conv 1 config in layer 4: {self.conv1_config}")
+        #     # print(f"    Conv1 output memory config: {ttnn.get_memory_config(conv1_out)}")
+        #     # breakpoint()
+        #     conv2_in = ttnn.to_memory_config(conv1_out, self.interleaved_dram)
+        #     del conv1_out
+        # else:
+        #     conv2_in = conv1_out
+
+        conv2_in = conv1_out
+
+        # print(f"    Conv2 input memory config: {ttnn.get_memory_config(conv2_in)}")
+        
+        # if self.layer_id == 4:
+        #     breakpoint()
 
         out, (out_h, out_w) = ttnn.conv2d(
             input_tensor=conv2_in,
@@ -188,10 +188,9 @@ class BasicBlock:
         )
 
 
-
         # print("out shape:", out.shape)
         # print("identity shape:", identity.shape)
-        # print("out mem cfg:", ttnn.get_memory_config(out))
+        # print("\nout mem cfg:", ttnn.get_memory_config(out))
         # print("identity mem cfg:", ttnn.get_memory_config(identity))
         # print("out layout:", out.layout)
         # print("identity layout:", identity.layout)
@@ -201,6 +200,7 @@ class BasicBlock:
             identity,
             activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
         )
+        # print("after add cfg:", ttnn.get_memory_config(out))
 
         self.output_height = out_h
         self.output_width = out_w

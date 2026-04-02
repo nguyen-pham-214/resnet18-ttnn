@@ -11,7 +11,7 @@ conv2d_config = {
         enable_act_double_buffer=True,
         reallocate_halo_output=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=6272,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
 
@@ -25,7 +25,7 @@ conv2d_config = {
 
         # deallocate_activation=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=416,
         enable_act_double_buffer=False,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -38,7 +38,7 @@ conv2d_config = {
 
         # deallocate_activation=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=416,
         enable_act_double_buffer = False,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -52,7 +52,7 @@ conv2d_config = {
 
         # deallocate_activation=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=416,
         enable_act_double_buffer = False,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -65,7 +65,7 @@ conv2d_config = {
 
         # deallocate_activation=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=416,
         enable_act_double_buffer = False,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -79,7 +79,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
 
-        # act_block_h_override=64,
+        # act_block_h_override=416,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -91,7 +91,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=128,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -103,7 +103,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=128,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -116,7 +116,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=128,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -128,7 +128,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=128,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -142,7 +142,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=128,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -154,7 +154,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=32,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -166,7 +166,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=32,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -179,7 +179,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=32,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -191,7 +191,7 @@ conv2d_config = {
         reallocate_halo_output=True,
         # deallocate_activation=True,
         
-        # act_block_h_override=64,
+        # act_block_h_override=32,
         enable_act_double_buffer=True,
         config_tensors_in_dram = True   # moves tiny config tensors, not main activations
     ),
@@ -200,7 +200,15 @@ conv2d_config = {
     "conv4.0.0": ttnn.Conv2dConfig(
         activation=ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU),
         shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        reshard_if_not_optimal=False,
+        reshard_if_not_optimal=True,
+
+        # override_sharding_config=True,  # force block sharding even if not optimal according to heuristics
+        # core_grid=ttnn.CoreRangeSet({ttnn.CoreRange((0, 0), (6, 7))}),
+        # act_block_h_override=64,
+        # override_output_sharding_config=True,
+
+        # # act_block_h_override=64,
+        # enable_weights_double_buffer=True, # block shard only
 
         weights_dtype=ttnn.bfloat8_b,
         enable_act_double_buffer=True,
@@ -209,7 +217,10 @@ conv2d_config = {
     ),
     "conv4.0.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        reshard_if_not_optimal=False,
+        reshard_if_not_optimal=True,
+
+        # # act_block_h_override=64,
+        # enable_weights_double_buffer=True, # block shard only
 
         weights_dtype=ttnn.bfloat8_b,
         enable_act_double_buffer=True,
@@ -219,7 +230,10 @@ conv2d_config = {
     
     "conv4.0.shortcut": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        reshard_if_not_optimal=False,
+        reshard_if_not_optimal=True,
+
+        # # act_block_h_override=64,
+        # enable_weights_double_buffer=True, # block shard only
 
         weights_dtype=ttnn.bfloat8_b,
         enable_act_double_buffer=True,
@@ -229,7 +243,10 @@ conv2d_config = {
     "conv4.1.0": ttnn.Conv2dConfig(
         activation=ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU),
         shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        reshard_if_not_optimal=False,
+        reshard_if_not_optimal=True,
+
+        # # act_block_h_override=64,
+        # enable_weights_double_buffer=True, # block shard only
 
         weights_dtype=ttnn.bfloat8_b,
         enable_act_double_buffer=True,
@@ -238,7 +255,10 @@ conv2d_config = {
     ),
     "conv4.1.1": ttnn.Conv2dConfig(
         shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        reshard_if_not_optimal=False,
+        reshard_if_not_optimal=True,
+
+        # # act_block_h_override=64,
+        # enable_weights_double_buffer=True, # block shard only
 
         weights_dtype=ttnn.bfloat8_b,
         enable_act_double_buffer=True,

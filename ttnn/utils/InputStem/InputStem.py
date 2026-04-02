@@ -56,6 +56,7 @@ class InputStem:
         # print(f"Input stem weight memory config: {self.weights.conv_weight.memory_config()}")
         # print(f"Input stem bias memory config: {self.weights.conv_bias.memory_config()}")
 
+        # print(f"\n    Input stem conv2d config: {self.conv2d_config}")
         # print("    Memory config of input tensor to stem:", ttnn.get_memory_config(input_tensor))
         # breakpoint()
         x, (conv_out_h, conv_out_w) = ttnn.conv2d(
@@ -92,27 +93,32 @@ class InputStem:
             padding=list(self.POOL_PADDING),
             dilation=list(self.POOL_DILATION),
 
-            # memory_config=ttnn.DRAM_MEMORY_CONFIsG,
+            # applied_shard_scheme=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,  # matches conv output shard scheme
+            output_layout=ttnn.TILE_LAYOUT,  # for better data reuse in blocks, since both conv and pool output are used in block 0
+            reallocate_halo_output=True,
+            deallocate_input=True,    
+
         )
 
-        pool_out_h = self._out_dim(
-            conv_out_h,
-            self.POOL_KERNEL[0],
-            self.POOL_STRIDE[0],
-            self.POOL_PADDING[0],
-            self.POOL_DILATION[0],
-        )
-        pool_out_w = self._out_dim(
-            conv_out_w,
-            self.POOL_KERNEL[1],
-            self.POOL_STRIDE[1],
-            self.POOL_PADDING[1],
-            self.POOL_DILATION[1],
-        )
+        # pool_out_h = self._out_dim(
+        #     conv_out_h,
+        #     self.POOL_KERNEL[0],
+        #     self.POOL_STRIDE[0],
+        #     self.POOL_PADDING[0],
+        #     self.POOL_DILATION[0],
+        # )
+        # pool_out_w = self._out_dim(
+        #     conv_out_w,
+        #     self.POOL_KERNEL[1],
+        #     self.POOL_STRIDE[1],
+        #     self.POOL_PADDING[1],
+        #     self.POOL_DILATION[1],
+        # )
 
         # print("    Memory config of output tensor from stem:", ttnn.get_memory_config(x))
 
-        return x, self.OUT_CHANNELS, pool_out_h, pool_out_w
+        # return x, self.OUT_CHANNELS, pool_out_h, pool_out_w
+        return x
 
 
         
