@@ -3,7 +3,6 @@ from typing import Optional
 
 import ttnn
 
-
 @dataclass
 class HeadWeights:
     fc_weight: ttnn.Tensor

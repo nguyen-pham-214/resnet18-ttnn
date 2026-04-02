@@ -4,10 +4,10 @@ from pathlib import Path
 import torch
 import ttnn
 
+from configs import conv2d_config
+from utils.Head.Head import ResNetHead, HeadWeights
 from utils.InputStem.InputStem import InputStem, InputStemWeights
 from utils.Layer.ResNetLayer import ResNetLayer
-from utils.Head.Head import ResNetHead, HeadWeights
-from configs import conv2d_config
 
 @dataclass
 class ResNet18Weights:
@@ -19,6 +19,15 @@ class ResNet18Weights:
     head: HeadWeights
 
 def _to_row_major_host(tensor: torch.Tensor, *, dtype):
+    """Convert a PyTorch tensor to TTNN row-major layout on host.
+
+    Args:
+        tensor (torch.Tensor): Input tensor.
+        dtype: Target TTNN dtype.
+
+    Returns:
+        ttnn.Tensor: Converted tensor in row-major layout.
+    """
     return ttnn.from_torch(
         tensor,
         dtype=dtype,
@@ -26,6 +35,19 @@ def _to_row_major_host(tensor: torch.Tensor, *, dtype):
     )
 
 def _build_fused_layer_dict(*, state_dict: dict, layer_id: int, dtype):
+    """Build a fused weight dictionary for a ResNet layer.
+
+    Fuses convolution and batch normalization parameters into a single
+    convolution representation.
+
+    Args:
+        state_dict (dict): PyTorch model state dictionary.
+        layer_id (int): Layer index (1–4).
+        dtype: Target TTNN dtype.
+
+    Returns:
+        dict[str, ttnn.Tensor]: Dictionary of fused weights and biases.
+    """
     layer_dict = {}
     prefix = f"layer{layer_id}."
 
@@ -126,19 +148,15 @@ def get_module_conv_configs(
     module: str,
     normalize_keys: bool = True,
 ):
-    """
-    Extract conv configs for a given module.
+    """Extract convolution configs for a specific module.
 
     Args:
-        conv2d_config: full config dict
-        module: e.g. "conv0", "conv1", "conv2", "head"
-        normalize_keys:
-            - True  -> keep keys with module prefix (conv1.0.0)
-            - False -> keep full original keys (same behavior)
+        conv2d_config (dict | None): Full convolution config dictionary.
+        module (str): Module name (e.g., "conv0", "conv1", ..., "head").
+        normalize_keys (bool, optional): Whether to normalize keys. Defaults to True.
 
     Returns:
-        dict for modules with sub-structure (layers/head)
-        single config or None for flat modules (e.g. conv0)
+        dict | None: Config dictionary for the module, or None if not available.
     """
     if conv2d_config is None:
         return None if module == "conv0" else {}
@@ -303,6 +321,20 @@ def fold_bn_into_conv(
     eps: float,
     conv_bias: torch.Tensor | None = None,
 ):
+    """Fuse batch normalization parameters into convolution weights.
+
+    Args:
+        conv_w (torch.Tensor): Convolution weights.
+        bn_mean (torch.Tensor): BatchNorm running mean.
+        bn_var (torch.Tensor): BatchNorm running variance.
+        bn_weight (torch.Tensor): BatchNorm scale (gamma).
+        bn_bias (torch.Tensor): BatchNorm bias (beta).
+        eps (float): Numerical stability constant.
+        conv_bias (torch.Tensor | None, optional): Original conv bias.
+
+    Returns:
+        tuple[torch.Tensor, torch.Tensor]: Fused weights and biases.
+    """
     if conv_bias is None:
         conv_bias = torch.zeros(
             conv_w.shape[0],
@@ -328,6 +360,24 @@ def load_resnet18_from_torch_checkpoint(
     conv2d_config=conv2d_config,
     head_memory_config=None,
 ):
+    """Load a ResNet18 model from a PyTorch checkpoint into TTNN.
+
+    Performs BN folding, weight conversion, and model construction.
+
+    Args:
+        weights_path (Path): Path to PyTorch checkpoint.
+        device: TTNN device.
+        batch_size (int): Batch size.
+        input_height (int): Input height.
+        input_width (int): Input width.
+        num_classes (int): Number of output classes.
+        dtype: Target TTNN dtype.
+        conv2d_config (dict, optional): Convolution configuration.
+        head_memory_config (optional): Memory config for head.
+
+    Returns:
+        ResNet18: Initialized TTNN ResNet18 model.
+    """
     state_dict = torch.load(weights_path, map_location="cpu")
 
     conv1_weight = state_dict["conv1.weight"].to(torch.bfloat16)

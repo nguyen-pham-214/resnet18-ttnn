@@ -1,22 +1,29 @@
-from pathlib import Path
-import time
 import os
 import sys
+import time
+from pathlib import Path
+from collections import OrderedDict
 
 import torch
 import ttnn
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "ttnn"))
+sys.path.insert(0, os.path.join(ROOT, "tt"))
 sys.path.insert(0, os.path.join(ROOT, "reference"))
-
 from resnet18_ttnn import load_resnet18_from_torch_checkpoint
 from resnet18_torch import create_torch_model
 
-from collections import OrderedDict
-
 def print_shape_comparison_table(torch_shapes, ttnn_shapes):
+    """Print a formatted table comparing tensor shapes between PyTorch and TTNN.
+
+    Args:
+        torch_shapes (dict): Mapping of layer names to PyTorch tensor shapes.
+        ttnn_shapes (dict): Mapping of layer names to TTNN tensor shapes.
+
+    Returns:
+        None
+    """
     all_keys = list(OrderedDict.fromkeys(list(torch_shapes.keys()) + list(ttnn_shapes.keys())))
 
     name_width = max(len("Layer"), max(len(k) for k in all_keys))
@@ -48,6 +55,15 @@ def print_shape_comparison_table(torch_shapes, ttnn_shapes):
     print(sep)
 
 def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
+    """Compute Pearson correlation coefficient (PCC) between two tensors.
+
+    Args:
+        a (torch.Tensor): First tensor.
+        b (torch.Tensor): Second tensor.
+
+    Returns:
+        float: Pearson correlation coefficient between flattened tensors.
+    """
     a = a.detach().reshape(-1).double()
     b = b.detach().reshape(-1).double()
 
@@ -55,6 +71,20 @@ def compute_pcc(a: torch.Tensor, b: torch.Tensor) -> float:
     return torch.corrcoef(stacked)[0, 1].item()
 
 def ttnn_act_to_torch(ref: torch.Tensor, x_ttnn) -> torch.Tensor:
+    """Convert TTNN activation tensor to match PyTorch tensor layout.
+
+    Handles reshaping and permutation for common TTNN output formats.
+
+    Args:
+        ref (torch.Tensor): Reference PyTorch tensor with expected shape.
+        x_ttnn: TTNN tensor or torch.Tensor to convert.
+
+    Returns:
+        torch.Tensor: Converted tensor matching reference shape.
+
+    Raises:
+        RuntimeError: If conversion cannot be safely performed.
+    """
     if isinstance(x_ttnn, torch.Tensor):
         x = x_ttnn.detach().cpu().float()
     else:
@@ -85,6 +115,21 @@ def ttnn_act_to_torch(ref: torch.Tensor, x_ttnn) -> torch.Tensor:
     )
 
 def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
+    """Compare activations between TTNN and PyTorch models layer by layer.
+
+    Computes and prints shape alignment and PCC for selected layers.
+
+    Args:
+        ttnn_acts (dict): Activations from TTNN model.
+        torch_acts (dict): Activations from PyTorch model (must include 'input').
+        per_sample (bool, optional): Whether to compute metrics per sample. Defaults to True.
+
+    Returns:
+        dict: Dictionary of comparison results (currently unused).
+    
+    Raises:
+        KeyError: If required keys are missing in torch_acts.
+    """
     layer_names = [
         "input",
         "stem",
@@ -171,7 +216,6 @@ def compare_acts(ttnn_acts: dict, torch_acts: dict, per_sample: bool = True):
 
     print("-" * 90)
     return results
-
 
 def main():
     weights_path = os.path.join(ROOT, "reference", "outputs", "resnet18_weights.pth")
