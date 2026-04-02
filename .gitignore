@@ -5,5 +5,3 @@ ENV/
 __pycache__/
 *.pyc
 generated/
-__pycache__/
-*.pyc
